@@ -1,0 +1,71 @@
+# -------------------------
+# FLUTTER / DART
+# -------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+
+# -------------------------
+# ENV / KEYS (SECURITY)
+# -------------------------
+.env
+*.env
+.env.*
+.env.local
+*.keystore
+*.jks
+android/key.properties
+
+# -------------------------
+# FIREBASE (IF USED)
+# -------------------------
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# -------------------------
+# ANDROID BUILD OUTPUT
+# -------------------------
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# -------------------------
+# iOS
+# -------------------------
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/.symlinks/
+ios/Pods/
+ios/ServiceDefinitions.json
+
+# -------------------------
+# IDE / EDITOR FILES
+# -------------------------
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# -------------------------
+# SYSTEM FILES
+# -------------------------
+.DS_Store
+Thumbs.db
+.history
+.svn/
+.atom/
+
+# -------------------------
+# MISC
+# -------------------------
+*.log
+*.map.json
+app.*.symbols
