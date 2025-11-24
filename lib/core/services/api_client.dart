@@ -4,7 +4,7 @@ import '../constants/env.dart';
 
 class ApiClient {
   late final Dio _dio;
-  String? _manualToken; // stored token for AuthNotifier
+  String? _manualToken; // token controlled by AuthNotifier
 
   ApiClient.create() {
     _dio = Dio(
@@ -18,13 +18,13 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // 1) Prefer manually-set token (AuthNotifier)
+          // 1) Manual token (highest priority)
           if (_manualToken != null) {
             options.headers['Authorization'] = 'Bearer $_manualToken';
             return handler.next(options);
           }
 
-          // 2) Fallback to SharedPreferences token
+          // 2) Fallback token from storage
           final prefs = await SharedPreferences.getInstance();
           final token = prefs.getString('auth_token');
 
@@ -36,62 +36,73 @@ class ApiClient {
         },
 
         onError: (err, handler) async {
-          // Only refresh token on 401
-          if (err.response?.statusCode == 401) {
-            final prefs = await SharedPreferences.getInstance();
-            final refreshToken = prefs.getString("refresh_token");
-
-            if (refreshToken == null) {
-              return handler.next(err); // No refresh token → must login
-            }
-
-            try {
-              // SEPARATE DIO INSTANCE (NO INTERCEPTORS)
-              final refreshDio = Dio(BaseOptions(baseUrl: Env.apiBaseUrl));
-
-              final refreshRes = await refreshDio.post(
-                '/auth/refresh',
-                data: {"refresh_token": refreshToken},
-              );
-
-              final newToken = refreshRes.data['token'];
-              final newRefresh = refreshRes.data['refresh_token'];
-
-              if (newToken == null) {
-                return handler.next(err);
-              }
-
-              // Save new tokens
-              await prefs.setString('auth_token', newToken);
-              if (newRefresh != null) {
-                await prefs.setString('refresh_token', newRefresh);
-              }
-
-              // ALSO update manual API token
-              _manualToken = newToken;
-
-              // Retry the failed request
-              final req = err.requestOptions;
-              req.headers['Authorization'] = 'Bearer $newToken';
-
-              final retryResponse = await _dio.fetch(req);
-              return handler.resolve(retryResponse);
-            } catch (_) {
-              return handler.next(err); // Refresh failed
-            }
+          if (err.response?.statusCode != 401) {
+            return handler.next(err); // only refresh on 401
           }
 
-          return handler.next(err);
+          final prefs = await SharedPreferences.getInstance();
+          final refreshToken = prefs.getString("refresh_token");
+
+          if (refreshToken == null) {
+            return handler.next(err);
+          }
+
+          try {
+            // USE CLEAN INSTANCE WITHOUT INTERCEPTORS
+            final refreshDio = Dio(BaseOptions(baseUrl: Env.apiBaseUrl));
+
+            final refreshRes = await refreshDio.post(
+              '/auth/refresh',
+              data: {"refresh_token": refreshToken},
+            );
+
+            final newToken = refreshRes.data['token'];
+            final newRefresh = refreshRes.data['refresh_token'];
+
+            if (newToken == null) {
+              return handler.next(err);
+            }
+
+            // Save tokens
+            await prefs.setString('auth_token', newToken);
+            if (newRefresh != null) {
+              await prefs.setString('refresh_token', newRefresh);
+            }
+
+            // Set manual override token
+            _manualToken = newToken;
+
+            // Retry original request
+            final req = err.requestOptions;
+            req.headers['Authorization'] = 'Bearer $newToken';
+
+            final retryResponse = await _dio.fetch(req);
+            return handler.resolve(retryResponse);
+          } catch (_) {
+            return handler.next(err); // Refresh failed
+          }
         },
       ),
     );
   }
 
-  /// Allows AuthNotifier to set token manually
+  /// ================================================================
+  /// MANUAL TOKEN SET (used by AuthNotifier on login)
+  /// ================================================================
   void setAuthToken(String? token) {
     _manualToken = token;
   }
 
+  /// ================================================================
+  /// CLEAR TOKEN ON LOGOUT (needed by your provider)
+  /// ================================================================
+  void clearAuth() {
+    _manualToken = null;
+  }
+
+  /// ================================================================
+  /// BASIC REQUEST HELPERS
+  /// ================================================================
   Future<dynamic> get(String path) async {
     final res = await _dio.get(path);
     return res.data;

@@ -1,132 +1,193 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/services/api_client.dart';
-import '../../../data/services/auth_service.dart';
 
-/// PROVIDE ApiClient
+import '../../../core/services/api_client.dart';
+import '../services/auth_service.dart';
+
+/// ==============================================================
+/// API CLIENT PROVIDER
+/// ==============================================================
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient.create();
 });
 
+/// ==============================================================
 /// AUTH STATE
+/// ==============================================================
 class AuthState {
   final bool isAuthenticated;
+  final bool isLoading;
   final Map<String, dynamic>? user;
   final String? token;
 
-  AuthState({required this.isAuthenticated, this.user, this.token});
+  AuthState({
+    required this.isAuthenticated,
+    required this.isLoading,
+    this.user,
+    this.token,
+  });
 
   AuthState copyWith({
     bool? isAuthenticated,
+    bool? isLoading,
     Map<String, dynamic>? user,
     String? token,
   }) {
     return AuthState(
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isLoading: isLoading ?? this.isLoading,
       user: user ?? this.user,
       token: token ?? this.token,
     );
   }
 }
 
-/// AUTH NOTIFIER
+/// ==============================================================
+/// AUTH NOTIFIER (BFF PATCHED VERSION)
+/// ==============================================================
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthService authService;
 
   AuthNotifier(this.authService)
-    : super(AuthState(isAuthenticated: false, user: null, token: null)) {
+    : super(AuthState(isAuthenticated: false, isLoading: true)) {
     _init();
   }
 
-  /// INITIALIZE TOKEN + USER (Auto Login)
+  // ============================================================
+  // INIT — Auto Login Fix (No Ghost Login)
+  // ============================================================
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
+
     final token = prefs.getString("auth_token");
+    final refresh = prefs.getString("refresh_token");
 
-    if (token != null && token.isNotEmpty) {
-      // Attach token manually to ApiClient
-      authService.apiClient.setAuthToken(token);
-
-      // Load user (/auth/me)
-      final me = await authService.getMe();
-
-      if (me["success"] == true) {
-        state = state.copyWith(
-          isAuthenticated: true,
-          token: token,
-          user: me["user"],
-        );
-      } else {
-        await logout();
-      }
+    // No token? user is logged out
+    if (token == null || token.isEmpty) {
+      state = state.copyWith(isAuthenticated: false, isLoading: false);
+      return;
     }
+
+    // Use stored token
+    authService.apiClient.setAuthToken(token);
+
+    // Try validating token by calling /auth/me
+    final me = await authService.getMe();
+
+    if (me["success"] == true) {
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        token: token,
+        user: me["user"],
+      );
+      return;
+    }
+
+    // If /me failed, try refresh
+    if (refresh != null && refresh.isNotEmpty) {
+      final ok = await _tryRefresh(refresh);
+      if (ok) return;
+    }
+
+    // Both failed → force logout
+    await logout();
   }
 
-  /// LOGIN
-  Future<bool> login({required String email, required String password}) async {
-    final res = await authService.login(email: email, password: password);
+  // ============================================================
+  // Try Refresh Token
+  // ============================================================
+  Future<bool> _tryRefresh(String refreshToken) async {
+    final res = await authService.refreshToken(refreshToken);
 
-    if (res["success"] == true) {
-      final token = res["token"];
-      final refreshToken = res["refresh_token"];
-      final user = res["user"];
+    if (res["success"] != true) return false;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString("auth_token", token);
-      if (refreshToken != null) {
-        await prefs.setString("refresh_token", refreshToken);
-      }
+    final newToken = res["token"];
+    final newRefresh = res["refresh_token"];
 
-      authService.apiClient.setAuthToken(token);
+    if (newToken == null) return false;
 
-      state = state.copyWith(isAuthenticated: true, token: token, user: user);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("auth_token", newToken);
+    await prefs.setString("refresh_token", newRefresh ?? "");
 
-      return true;
-    }
-    return false;
-  }
+    authService.apiClient.setAuthToken(newToken);
 
-  /// SIGNUP
-  Future<bool> signup({
-    required String fullName,
-    required String email,
-    required String password,
-  }) async {
-    final res = await authService.signup(
-      fullName: fullName,
-      email: email,
-      password: password,
+    // Validate new token
+    final me = await authService.getMe();
+
+    if (me["success"] != true) return false;
+
+    state = state.copyWith(
+      isAuthenticated: true,
+      isLoading: false,
+      token: newToken,
+      user: me["user"],
     );
 
-    return res["success"] == true;
+    return true;
   }
 
-  /// LOGOUT
-  Future<void> logout() async {
-    try {
-      await authService.logout();
-    } catch (_) {}
+  // ============================================================
+  // LOGIN
+  // ============================================================
+  Future<bool> login({required String email, required String password}) async {
+    state = state.copyWith(isLoading: true);
 
+    final res = await authService.login(email: email, password: password);
+
+    if (res["success"] != true) {
+      state = state.copyWith(isLoading: false);
+      return false;
+    }
+
+    final token = res["token"];
+    final refresh = res["refresh_token"];
+
+    if (token == null) {
+      state = state.copyWith(isLoading: false);
+      return false;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString("auth_token", token);
+    await prefs.setString("refresh_token", refresh ?? "");
+
+    authService.apiClient.setAuthToken(token);
+
+    state = state.copyWith(
+      isAuthenticated: true,
+      isLoading: false,
+      token: token,
+      user: res["user"],
+    );
+
+    return true;
+  }
+
+  // ============================================================
+  // LOGOUT (FULL CLEAN)
+  // ============================================================
+  Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("auth_token");
     await prefs.remove("refresh_token");
 
-    authService.apiClient.setAuthToken(null);
+    authService.apiClient.clearAuth();
 
-    state = AuthState(isAuthenticated: false, user: null, token: null);
+    state = AuthState(
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+      token: null,
+    );
   }
 }
 
-/// PROVIDER
+/// ==============================================================
+/// AUTH PROVIDER
+/// ==============================================================
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
   final api = ref.read(apiClientProvider);
-  final service = AuthService(api);
-  return AuthNotifier(service);
-});
-
-/// CHECK TOKEN ON START
-final hasTokenProvider = FutureProvider<bool>((ref) async {
-  final prefs = await SharedPreferences.getInstance();
-  final token = prefs.getString("auth_token");
-  return token != null && token.isNotEmpty;
+  return AuthNotifier(AuthService(api));
 });

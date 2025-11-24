@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // =============================
 // AUTH
 // =============================
-import 'features/auth/providers/auth_provider.dart';
+import '../../../features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/intro_screen.dart';
@@ -41,55 +41,48 @@ class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final authCheck = ref.watch(hasTokenProvider);
+    final auth = ref.watch(authProvider);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light(),
 
-      home: authCheck.when(
-        loading: () => const SplashScreen(),
-        error: (_, __) => const LoginScreen(),
-        data: (hasToken) {
-          return hasToken ? MainNavigation() : const LoginScreen();
+      home: Builder(
+        builder: (_) {
+          if (auth.isLoading) {
+            return const SplashScreen();
+          }
+
+          if (auth.isAuthenticated) {
+            return MainNavigation();
+          }
+
+          return const LoginScreen();
         },
       ),
 
       routes: {
-        // =============================
-        // AUTH ROUTES
-        // =============================
         LoginScreen.routeName: (_) => const LoginScreen(),
-        MainNavigation.routeName: (_) => MainNavigation(),
+        MainNavigation.routeName: (_) => const MainNavigation(),
         IntroScreen.routeName: (_) => const IntroScreen(),
-
-        // =============================
-        // PROFILE
-        // =============================
         EditProfileScreen.routeName: (_) => const EditProfileScreen(),
 
-        // =============================
-        // FEATURED BUILD DETAIL
-        // =============================
+        // FEATURED DETAILS
         FeaturedBuildDetailScreen.routeName: (ctx) => FeaturedBuildDetailScreen(
           featuredBuild:
               ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>,
         ),
 
-        // =============================
-        // AUTOBUILD RESULT SCREEN
-        // =============================
+        // AUTOBUILD RESULT
         AutoBuildResultScreen.routeName: (ctx) {
           final result =
               ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
-
           return AutoBuildResultScreen(result: result);
         },
 
-        // =============================
-        // BUILD FLOW B (NEW)
-        // =============================
+        // BUILD FLOW
         BuildCategoryScreen.routeName: (_) => const BuildCategoryScreen(),
         BuildComponentsScreen.routeName: (_) => const BuildComponentsScreen(),
       },
