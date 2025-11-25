@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/profile_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 import 'edit_profile_screen.dart';
+import '../../auth/screens/login_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   static const routeName = '/profile';
@@ -21,10 +23,8 @@ class ProfileScreen extends ConsumerWidget {
           child: Column(
             children: [
               _buildPremiumHeaderCard(context, state, ref),
-
               const SizedBox(height: 24),
 
-              // Section Title
               _buildSectionHeader("Account"),
               const SizedBox(height: 12),
 
@@ -45,15 +45,13 @@ class ProfileScreen extends ConsumerWidget {
 
               const SizedBox(height: 32),
 
-              _buildLogoutButton(context),
+              _buildLogoutButton(context, ref),
 
               const SizedBox(height: 20),
-
               Text(
                 "Version 1.0.0",
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
-
               const SizedBox(height: 40),
             ],
           ),
@@ -62,7 +60,9 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // 🔵 HEADER WITH PROFILE DATA
+  // ================================
+  // HEADER CARD
+  // ================================
   Widget _buildPremiumHeaderCard(
     BuildContext context,
     ProfileState state,
@@ -89,7 +89,7 @@ class ProfileScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // 👤 AVATAR
+          // Avatar
           Container(
             padding: const EdgeInsets.all(4),
             child: Container(
@@ -104,25 +104,17 @@ class ProfileScreen extends ConsumerWidget {
 
           const SizedBox(height: 16),
 
-          // 👤 NAME
           _buildName(state),
-
           const SizedBox(height: 4),
-
-          // ✉️ EMAIL
           _buildEmail(state),
 
           const SizedBox(height: 20),
 
-          // ✏️ EDIT PROFILE BUTTON
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: () async {
-                // Go to edit profile
                 await Navigator.pushNamed(context, EditProfileScreen.routeName);
-
-                // Refresh profile after returning
                 ref.read(profileProvider.notifier).loadProfile();
               },
               icon: const Icon(Icons.edit, size: 18),
@@ -146,7 +138,9 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // 🟦 Avatar UI Logic
+  // ================================
+  // AVATAR
+  // ================================
   Widget _buildAvatar(ProfileState state) {
     if (state.status == ProfileStatus.loading) {
       return const CircleAvatar(
@@ -163,18 +157,18 @@ class ProfileScreen extends ConsumerWidget {
       );
     }
 
-    final avatar = state.profile!.avatarUrl;
-
     return CircleAvatar(
       radius: 50,
       backgroundColor: const Color(0xFFDCECFF),
-      backgroundImage: avatar != null
-          ? NetworkImage(avatar)
+      backgroundImage: state.profile!.avatarUrl != null
+          ? NetworkImage(state.profile!.avatarUrl!)
           : const AssetImage('assets/default_profile.png') as ImageProvider,
     );
   }
 
-  // 🟦 Name UI
+  // ================================
+  // NAME
+  // ================================
   Widget _buildName(ProfileState state) {
     if (state.status == ProfileStatus.loading) {
       return const Text(
@@ -183,48 +177,36 @@ class ProfileScreen extends ConsumerWidget {
       );
     }
 
-    if (state.profile == null) {
-      return const Text("Unknown", style: TextStyle(color: Colors.white));
-    }
-
     return Text(
-      state.profile!.fullName,
+      state.profile?.fullName ?? "Unknown User",
       style: const TextStyle(
         fontSize: 24,
         fontWeight: FontWeight.w700,
         color: Colors.white,
-        letterSpacing: -0.5,
       ),
     );
   }
 
-  // 🟦 Email UI
+  // ================================
+  // EMAIL
+  // ================================
   Widget _buildEmail(ProfileState state) {
     if (state.status == ProfileStatus.loading) {
       return Text(
         "Please wait...",
-        style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.9)),
-      );
-    }
-
-    if (state.profile == null) {
-      return Text(
-        "No email",
-        style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.9)),
+        style: TextStyle(color: Colors.white.withOpacity(0.9)),
       );
     }
 
     return Text(
-      state.profile!.email,
-      style: TextStyle(
-        fontSize: 15,
-        color: Colors.white.withOpacity(0.9),
-        fontWeight: FontWeight.w500,
-      ),
+      state.profile?.email ?? "No email",
+      style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.9)),
     );
   }
 
-  // 🔵 SECTION HEADER
+  // ================================
+  // SECTION HEADER
+  // ================================
   Widget _buildSectionHeader(String title) {
     return Row(
       children: [
@@ -234,14 +216,15 @@ class ProfileScreen extends ConsumerWidget {
             fontSize: 18,
             fontWeight: FontWeight.w700,
             color: Color(0xFF1E293B),
-            letterSpacing: -0.5,
           ),
         ),
       ],
     );
   }
 
-  // 🔵 MENU ITEM
+  // ================================
+  // MENU ITEM
+  // ================================
   Widget _buildMenuItem(
     BuildContext context, {
     required IconData icon,
@@ -295,12 +278,14 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // 🔵 LOGOUT BUTTON
-  Widget _buildLogoutButton(BuildContext context) {
+  // ================================
+  // LOGOUT BUTTON
+  // ================================
+  Widget _buildLogoutButton(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
-        onPressed: () => _showLogoutConfirmation(context),
+        onPressed: () => _showLogoutConfirmation(context, ref),
         icon: const Icon(Icons.logout, size: 20),
         label: const Text(
           "Logout",
@@ -310,8 +295,6 @@ class ProfileScreen extends ConsumerWidget {
           backgroundColor: const Color(0xFFEF4444),
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          elevation: 4,
-          shadowColor: const Color(0xFFEF4444).withOpacity(0.3),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -320,11 +303,13 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // 🔵 LOGOUT DIALOG
-  void _showLogoutConfirmation(BuildContext context) {
+  // ================================
+  // LOGOUT CONFIRMATION DIALOG
+  // ================================
+  void _showLogoutConfirmation(BuildContext parentContext, WidgetRef ref) {
     showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
+      context: parentContext,
+      builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: const [
@@ -336,7 +321,7 @@ class ProfileScreen extends ConsumerWidget {
             SizedBox(width: 12),
             Text(
               "Logout",
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -346,29 +331,22 @@ class ProfileScreen extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // TODO: Add logout logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Logged out successfully'),
-                  backgroundColor: Color(0xFF10B981),
-                ),
+            onPressed: () async {
+              Navigator.pop(dialogCtx); // close dialog FIRST
+
+              await ref.read(authProvider.notifier).logout();
+
+              /// IMPORTANT FIX — use parent context
+              Navigator.of(parentContext).pushNamedAndRemoveUntil(
+                LoginScreen.routeName,
+                (route) => false,
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Color(0xFFEF4444)),
             child: const Text("Logout"),
           ),
         ],

@@ -1,66 +1,60 @@
 import 'dart:io';
-import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/core/constants/env.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileService {
-  late Dio _dio;
+  final supabase = Supabase.instance.client;
 
-  ProfileService() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: Env.apiBaseUrl,
-        connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 5),
-      ),
-    );
-
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) async {
-          final prefs = await SharedPreferences.getInstance();
-          final token = prefs.getString('token');
-
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
-          }
-          return handler.next(options);
-        },
-      ),
-    );
-  }
-
-  // GET /api/profile
+  // GET profile from Supabase "profiles" table
   Future<Map<String, dynamic>> getMyProfile() async {
-    final res = await _dio.get('/profile');
-    return res.data['profile']; // FIX
+    final user = supabase.auth.currentUser;
+    if (user == null) throw "Not logged in";
+
+    final res = await supabase
+        .from('profiles')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (res == null) throw "Profile not found";
+
+    return res;
   }
 
-  // PUT /api/profile
+  // UPDATE full_name
   Future<bool> updateProfile(String fullName) async {
-    final res = await _dio.put(
-      '/profile',
-      data: {'full_name': fullName}, // FIX
-    );
+    final user = supabase.auth.currentUser;
+    if (user == null) throw "Not logged in";
 
-    return res.data['success'] == true;
+    final res = await supabase
+        .from('profiles')
+        .update({'full_name': fullName})
+        .eq('id', user.id);
+
+    return true;
   }
 
-  // POST /api/profile/avatar
+  // UPDATE avatar image
   Future<bool> updateAvatar(File file) async {
-    final formData = FormData.fromMap({
-      "file": await MultipartFile.fromFile(
-        file.path,
-        filename: file.path.split('/').last,
-      ),
-    });
+    final user = supabase.auth.currentUser;
+    if (user == null) throw "Not logged in";
 
-    final res = await _dio.post(
-      '/profile/avatar',
-      data: formData,
-      options: Options(contentType: 'multipart/form-data'),
-    );
+    final fileName = "avatar-${user.id}.jpg";
 
-    return res.data['success'] == true;
+    // Upload to bucket "avatars"
+    final uploadRes = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, fileOptions: const FileOptions(upsert: true));
+
+    if (uploadRes.isEmpty) throw "Upload failed";
+
+    final publicUrl = supabase.storage.from('avatars').getPublicUrl(fileName);
+
+    // Save to profile table
+    await supabase
+        .from('profiles')
+        .update({'avatar_url': publicUrl})
+        .eq('id', user.id);
+
+    return true;
   }
 }

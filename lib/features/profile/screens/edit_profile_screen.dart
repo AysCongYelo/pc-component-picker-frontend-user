@@ -1,8 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
-class EditProfileScreen extends StatefulWidget {
+import '../providers/profile_provider.dart';
+
+class EditProfileScreen extends ConsumerStatefulWidget {
   static const routeName = '/edit-profile';
 
   const EditProfileScreen({super.key});
@@ -11,218 +14,210 @@ class EditProfileScreen extends StatefulWidget {
   _EditProfileScreenState createState() => _EditProfileScreenState();
 }
 
-class _EditProfileScreenState extends State<EditProfileScreen> {
+class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
 
-  // Controllers for form fields
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
 
-  File? _profileImage;
+  File? _pickedAvatar;
 
-  // Function to pick image
-  Future<void> _pickImage(ImageSource source) async {
-    final pickedFile = await _picker.pickImage(source: source);
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
-    }
-  }
+  @override
+  void initState() {
+    super.initState();
 
-  // Save account function
-  void _saveAccount() {
-    if (_formKey.currentState!.validate()) {
-      print('Account Saved:');
-      print('Name: ${_nameController.text}');
-      print('Email: ${_emailController.text}');
-      print('Phone: ${_phoneController.text}');
-      print('Profile Image: ${_profileImage?.path ?? 'No image selected'}');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Account updated successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    // Load initial profile data
+    final state = ref.read(profileProvider);
+    if (state.profile != null) {
+      _nameController.text = state.profile!.fullName;
     }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    final file = await _picker.pickImage(source: source);
+    if (file != null) {
+      setState(() {
+        _pickedAvatar = File(file.path);
+      });
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final notifier = ref.read(profileProvider.notifier);
+
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Save name
+      await notifier.updateName(_nameController.text.trim());
+
+      // If user changed avatar → upload
+      if (_pickedAvatar != null) {
+        await notifier.updateAvatar(_pickedAvatar!);
+      }
+
+      Navigator.pop(context); // close loader
+      Navigator.pop(context); // close screen
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Profile updated successfully!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Failed to update: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(profileProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Edit Account'),
-        centerTitle: true,
-        backgroundColor: Theme.of(context).primaryColor,
-        elevation: 0,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Profile Picture Section
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 60,
-                        backgroundImage: _profileImage != null
-                            ? FileImage(_profileImage!)
-                            : AssetImage('assets/default_profile.png')
-                                  as ImageProvider,
-                        backgroundColor: Colors.grey[300],
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor,
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: Icon(Icons.camera_alt, color: Colors.white),
-                            onPressed: () => _showImageSourceDialog(),
-                            padding: EdgeInsets.all(8),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 40),
-
-                  // Constrain width for centered form
-                  Container(
-                    constraints: BoxConstraints(maxWidth: 400),
-                    child: Column(
+      appBar: AppBar(title: const Text("Edit Profile"), centerTitle: true),
+      body: state.status == ProfileStatus.loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    // Avatar
+                    Stack(
                       children: [
-                        // Personal Information Section
-                        Text(
-                          'Personal Information',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundImage: _pickedAvatar != null
+                              ? FileImage(_pickedAvatar!)
+                              : (state.profile?.avatarUrl != null
+                                    ? NetworkImage(state.profile!.avatarUrl!)
+                                    : const AssetImage(
+                                            'assets/default_profile.png',
+                                          )
+                                          as ImageProvider),
                         ),
-                        SizedBox(height: 16),
-
-                        // Name Field
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: InputDecoration(
-                            labelText: 'Full Name',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            prefixIcon: Icon(Icons.person),
-                            filled: true,
-                            fillColor: Colors.grey[50],
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter your name';
-                            }
-                            return null;
-                          },
-                        ),
-                        SizedBox(height: 16),
-
-                        // Save Button
-                        ElevatedButton(
-                          onPressed: _saveAccount,
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: Size(double.infinity, 56),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: CircleAvatar(
                             backgroundColor: Theme.of(context).primaryColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 2,
-                          ),
-                          child: Text(
-                            'Save Changes',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 16),
-
-                        // Cancel Button
-                        OutlinedButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: Size(double.infinity, 56),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(
-                              color: Colors.grey[400]!,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[700],
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                              ),
+                              onPressed: _showImagePickerDialog,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  SizedBox(height: 24),
-                ],
+
+                    const SizedBox(height: 40),
+
+                    // Name TextField
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Full Name',
+                        prefixIcon: const Icon(Icons.person),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (value) => value == null || value.isEmpty
+                          ? "Name required"
+                          : null,
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // SAVE BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: _saveProfile,
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          "Save Changes",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // CANCEL BUTTON
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text("Cancel"),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
-      ),
     );
   }
 
-  void _showImageSourceDialog() {
+  void _showImagePickerDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Select Image Source'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (_) => AlertDialog(
+        title: const Text("Select Image Source"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
+              Navigator.pop(context);
               _pickImage(ImageSource.camera);
             },
-            child: Text('Camera'),
+            child: const Text("Camera"),
           ),
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
+              Navigator.pop(context);
               _pickImage(ImageSource.gallery);
             },
-            child: Text('Gallery'),
+            child: const Text("Gallery"),
           ),
         ],
       ),
