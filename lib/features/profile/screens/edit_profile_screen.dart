@@ -109,9 +109,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           backgroundImage: _newAvatar != null
                               ? FileImage(_newAvatar!)
                               : (user["avatar_url"] != null
-                                        ? NetworkImage(user["avatar_url"])
-                                        : const AssetImage("assets/user.png"))
-                                    as ImageProvider,
+                                    ? NetworkImage(user["avatar_url"])
+                                    : const AssetImage("assets/user.png")),
                         ),
                         Positioned(
                           bottom: 0,
