@@ -35,8 +35,9 @@ class _IntroScreenState extends State<IntroScreen> {
       appBar: AppBar(
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pushReplacementNamed(context, LoginScreen.routeName),
+            onPressed: () {
+              Navigator.pushReplacementNamed(context, LoginScreen.routeName);
+            },
             child: const Text('Skip'),
           ),
         ],
@@ -66,7 +67,11 @@ class _IntroScreenState extends State<IntroScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(p['desc']!, textAlign: TextAlign.center),
+                        Text(
+                          p['desc']!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 15),
+                        ),
                       ],
                     ),
                   ),
@@ -81,7 +86,8 @@ class _IntroScreenState extends State<IntroScreen> {
                 Row(
                   children: List.generate(
                     pages.length,
-                    (i) => Container(
+                    (i) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       width: _index == i ? 18 : 8,
                       height: 8,

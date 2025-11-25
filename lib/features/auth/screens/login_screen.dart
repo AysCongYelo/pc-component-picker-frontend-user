@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/auth_provider.dart'; //
+import 'package:frontend/features/auth/providers/auth_provider.dart';
 import '../../../features/navigation/main_navigation.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -58,27 +58,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _onLogin() async {
-    // Validate form first
     if (!_formKey.currentState!.validate()) {
       _showError('Please fix the errors in the form');
       return;
     }
 
-    // Read notifier and start login
     final authNotifier = ref.read(authProvider.notifier);
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // call login (AuthNotifier handles isLoading and token persistence)
     final success = await authNotifier.login(email: email, password: password);
 
     if (!mounted) return;
 
     if (success) {
-      _showSuccess('Login successful! Redirecting...');
-      await Future.delayed(const Duration(milliseconds: 600));
-      Navigator.pushReplacementNamed(context, MainNavigation.routeName);
+      _showSuccess('Login successful!');
     } else {
       _showError('Invalid email or password');
     }

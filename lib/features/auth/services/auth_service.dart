@@ -1,100 +1,77 @@
-// lib/data/services/auth_service.dart
-import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/core/services/api_client.dart';
-import 'package:frontend/core/constants/env.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthService {
-  final ApiClient apiClient;
-  final Dio _dio;
+  final supabase = Supabase.instance.client;
 
-  AuthService(this.apiClient)
-    : _dio = Dio(
-        BaseOptions(
-          baseUrl: Env.apiBaseUrl,
-          connectTimeout: const Duration(seconds: 5),
-          receiveTimeout: const Duration(seconds: 5),
-        ),
-      );
-
-  /* ============================================================
-      LOGIN
-      -> Returns a Map with keys: success, token, refresh_token, user
-  ============================================================ */
+  // ============================================================
+  // LOGIN (SUPABASE)
+  // ============================================================
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
   }) async {
-    try {
-      final res = await _dio.post(
-        "/auth/login",
-        data: {"email": email, "password": password},
-      );
-      return Map<String, dynamic>.from(res.data ?? {"success": false});
-    } catch (e) {
-      return {"success": false, "error": e.toString()};
+    final res = await supabase.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+
+    if (res.session == null) {
+      return {"success": false};
     }
+
+    final userId = res.session!.user.id;
+
+    final profile = await supabase
+        .from("profiles")
+        .select()
+        .eq("id", userId)
+        .maybeSingle();
+
+    return {"success": true, "user": profile};
   }
 
-  /* ============================================================
-      SIGNUP
-      -> Returns Map (success, maybe user or message)
-  ============================================================ */
+  // ============================================================
+  // SIGNUP (SUPABASE)
+  // ============================================================
   Future<Map<String, dynamic>> signup({
     required String fullName,
     required String email,
     required String password,
   }) async {
-    try {
-      final res = await _dio.post(
-        "/auth/signup",
-        data: {"full_name": fullName, "email": email, "password": password},
-      );
-      return Map<String, dynamic>.from(res.data ?? {"success": false});
-    } catch (e) {
-      return {"success": false, "error": e.toString()};
-    }
-  }
+    final res = await supabase.auth.signUp(
+      email: email,
+      password: password,
+      data: {"full_name": fullName},
+    );
 
-  /* ============================================================
-      GET CURRENT USER (/auth/me)
-      -> Uses ApiClient so interceptor attaches token
-  ============================================================ */
-  Future<Map<String, dynamic>> getMe() async {
-    try {
-      final res = await apiClient.get("/auth/me");
-      return Map<String, dynamic>.from(res ?? {"success": false});
-    } catch (e) {
+    if (res.user == null) {
       return {"success": false};
     }
+
+    // Optional: load profile
+    return {"success": true, "user": res.user!.toJson()};
   }
 
-  /* ============================================================
-      REFRESH TOKEN (/auth/refresh)
-      -> Returns Map with new token(s)
-  ============================================================ */
-  Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    try {
-      final res = await apiClient.post("/auth/refresh", {
-        "refresh_token": refreshToken,
-      });
-      return Map<String, dynamic>.from(res ?? {"success": false});
-    } catch (e) {
-      return {"success": false};
-    }
+  // ============================================================
+  // GET CURRENT USER & PROFILE
+  // ============================================================
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    final session = supabase.auth.currentSession;
+    if (session == null) return null;
+
+    final profile = await supabase
+        .from("profiles")
+        .select()
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+    return profile;
   }
 
-  /* ============================================================
-      LOGOUT
-      -> call backend logout (optional) and remove stored tokens
-  ============================================================ */
+  // ============================================================
+  // LOGOUT
+  // ============================================================
   Future<void> logout() async {
-    try {
-      await apiClient.post("/auth/logout", {});
-    } catch (_) {}
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove("auth_token");
-    await prefs.remove("refresh_token");
+    await supabase.auth.signOut();
   }
 }
