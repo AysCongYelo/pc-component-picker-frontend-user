@@ -27,21 +27,21 @@ class AuthState {
 
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(AuthState(isAuthenticated: false, isLoading: true)) {
-    // IMPORTANT FIX: run init AFTER first frame
     Future.microtask(() => _init());
   }
 
   final supabase = Supabase.instance.client;
 
+  // ------------------------------------------------------------------
+  // INIT
+  // ------------------------------------------------------------------
   Future<void> _init() async {
-    // Smooth startup (prevents Android hang)
     await Future.delayed(const Duration(milliseconds: 120));
 
     final session = supabase.auth.currentSession;
 
     if (session != null) {
       final profile = await _loadProfile(session.user.id);
-
       state = state.copyWith(
         isAuthenticated: true,
         isLoading: false,
@@ -51,7 +51,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isAuthenticated: false, isLoading: false);
     }
 
-    // AUTH STATE LISTENER (login, logout, refresh)
+    // AUTH STATE LISTENER
     supabase.auth.onAuthStateChange.listen((event) async {
       final session = event.session;
 
@@ -65,16 +65,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
     });
   }
 
+  // ------------------------------------------------------------------
+  // LOAD USER PROFILE
+  // ------------------------------------------------------------------
   Future<Map<String, dynamic>?> _loadProfile(String uid) async {
-    final res = await supabase
-        .from("profiles")
-        .select()
-        .eq("id", uid)
-        .maybeSingle();
-
-    return res;
+    return await supabase.from("profiles").select().eq("id", uid).maybeSingle();
   }
 
+  // ------------------------------------------------------------------
+  // 🔵 REFRESH USER PROFILE — for profile updates
+  // ------------------------------------------------------------------
+  Future<void> refreshUserProfile() async {
+    final session = supabase.auth.currentSession;
+    if (session == null) return;
+
+    final profile = await _loadProfile(session.user.id);
+
+    state = state.copyWith(isAuthenticated: true, user: profile);
+  }
+
+  // ------------------------------------------------------------------
+  // LOGIN
+  // ------------------------------------------------------------------
   Future<bool> login({required String email, required String password}) async {
     try {
       state = state.copyWith(isLoading: true);
@@ -84,7 +96,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
       );
 
-      // if failed, res.session will be null → return false
       if (res.session == null) {
         state = state.copyWith(isLoading: false);
         return false;
@@ -100,12 +111,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       return true;
     } catch (e) {
-      // prevent crash
       state = state.copyWith(isLoading: false);
       return false;
     }
   }
 
+  // ------------------------------------------------------------------
+  // LOGOUT
+  // ------------------------------------------------------------------
   Future<void> logout() async {
     await supabase.auth.signOut();
     state = AuthState(isAuthenticated: false, isLoading: false, user: null);

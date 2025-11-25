@@ -1,10 +1,11 @@
+// lib/features/profile/screens/profile_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/profile_provider.dart';
 import '../../auth/providers/auth_provider.dart';
-import 'edit_profile_screen.dart';
 import '../../auth/screens/login_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   static const routeName = '/profile';
@@ -13,7 +14,8 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(profileProvider);
+    final auth = ref.watch(authProvider);
+    final user = auth.user; // Map<String, dynamic> or null
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -22,23 +24,21 @@ class ProfileScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
             children: [
-              _buildPremiumHeaderCard(context, state, ref),
+              _headerCard(context, user),
               const SizedBox(height: 24),
 
-              _buildSectionHeader("Account"),
+              _section("Account"),
               const SizedBox(height: 12),
 
-              _buildMenuItem(
-                context,
+              _menu(
                 icon: Icons.history,
-                label: "Order History",
+                title: "Order History",
                 subtitle: "View your past orders",
                 onTap: () {},
               ),
-              _buildMenuItem(
-                context,
+              _menu(
                 icon: Icons.bookmark,
-                label: "Saved Builds",
+                title: "Saved Builds",
                 subtitle: "Your custom PC configurations",
                 onTap: () {},
               ),
@@ -52,7 +52,6 @@ class ProfileScreen extends ConsumerWidget {
                 "Version 1.0.0",
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
               ),
-              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -60,23 +59,17 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // ================================
+  // ---------------------------------------------------------------------------
   // HEADER CARD
-  // ================================
-  Widget _buildPremiumHeaderCard(
-    BuildContext context,
-    ProfileState state,
-    WidgetRef ref,
-  ) {
-    final Color mainBlue = const Color(0xFF2563EB);
+  // ---------------------------------------------------------------------------
+  Widget _headerCard(BuildContext context, Map<String, dynamic>? user) {
+    final mainBlue = const Color(0xFF2563EB);
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -89,47 +82,55 @@ class ProfileScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          // Avatar
-          Container(
-            padding: const EdgeInsets.all(4),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-              ),
-              child: _buildAvatar(state),
-            ),
+          CircleAvatar(
+            radius: 50,
+            backgroundColor: Colors.white,
+            backgroundImage: user?['avatar_url'] != null
+                ? NetworkImage(user!['avatar_url'])
+                : const AssetImage('assets/user.png') as ImageProvider,
           ),
 
           const SizedBox(height: 16),
 
-          _buildName(state),
+          Text(
+            user?['full_name'] ?? "Unknown User",
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+
           const SizedBox(height: 4),
-          _buildEmail(state),
+
+          Text(
+            user?['email'] ?? "",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 15,
+            ),
+          ),
 
           const SizedBox(height: 20),
 
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () async {
-                await Navigator.pushNamed(context, EditProfileScreen.routeName);
-                ref.read(profileProvider.notifier).loadProfile();
+              onPressed: () {
+                Navigator.pushNamed(context, EditProfileScreen.routeName);
               },
               icon: const Icon(Icons.edit, size: 18),
-              label: const Text(
-                "Edit Profile",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
                 foregroundColor: mainBlue,
+                backgroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+              ),
+              label: const Text(
+                "Edit Profile",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -138,76 +139,10 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // ================================
-  // AVATAR
-  // ================================
-  Widget _buildAvatar(ProfileState state) {
-    if (state.status == ProfileStatus.loading) {
-      return const CircleAvatar(
-        radius: 50,
-        backgroundColor: Color(0xFFDCECFF),
-        child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-      );
-    }
-
-    if (state.status == ProfileStatus.error || state.profile == null) {
-      return const CircleAvatar(
-        radius: 50,
-        child: Icon(Icons.error, size: 50, color: Colors.red),
-      );
-    }
-
-    return CircleAvatar(
-      radius: 50,
-      backgroundColor: const Color(0xFFDCECFF),
-      backgroundImage: state.profile!.avatarUrl != null
-          ? NetworkImage(state.profile!.avatarUrl!)
-          : const AssetImage('assets/default_profile.png') as ImageProvider,
-    );
-  }
-
-  // ================================
-  // NAME
-  // ================================
-  Widget _buildName(ProfileState state) {
-    if (state.status == ProfileStatus.loading) {
-      return const Text(
-        "Loading...",
-        style: TextStyle(color: Colors.white, fontSize: 20),
-      );
-    }
-
-    return Text(
-      state.profile?.fullName ?? "Unknown User",
-      style: const TextStyle(
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-      ),
-    );
-  }
-
-  // ================================
-  // EMAIL
-  // ================================
-  Widget _buildEmail(ProfileState state) {
-    if (state.status == ProfileStatus.loading) {
-      return Text(
-        "Please wait...",
-        style: TextStyle(color: Colors.white.withOpacity(0.9)),
-      );
-    }
-
-    return Text(
-      state.profile?.email ?? "No email",
-      style: TextStyle(fontSize: 15, color: Colors.white.withOpacity(0.9)),
-    );
-  }
-
-  // ================================
+  // ---------------------------------------------------------------------------
   // SECTION HEADER
-  // ================================
-  Widget _buildSectionHeader(String title) {
+  // ---------------------------------------------------------------------------
+  Widget _section(String title) {
     return Row(
       children: [
         Text(
@@ -222,13 +157,12 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // ================================
+  // ---------------------------------------------------------------------------
   // MENU ITEM
-  // ================================
-  Widget _buildMenuItem(
-    BuildContext context, {
+  // ---------------------------------------------------------------------------
+  Widget _menu({
     required IconData icon,
-    required String label,
+    required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
@@ -238,49 +172,26 @@ class ProfileScreen extends ConsumerWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2563EB).withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: const Color(0xFF2563EB), size: 24),
-        ),
+        leading: Icon(icon, color: const Color(0xFF2563EB), size: 26),
         title: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF1E293B),
-          ),
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
           subtitle,
           style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
         ),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Color(0xFF94A3B8),
-        ),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
       ),
     );
   }
 
-  // ================================
-  // LOGOUT BUTTON
-  // ================================
+  // ---------------------------------------------------------------------------
+  // LOGOUT BUTTON (THIS WAS THE MISSING FUNCTION)
+  // ---------------------------------------------------------------------------
   Widget _buildLogoutButton(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: double.infinity,
@@ -303,12 +214,12 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  // ================================
-  // LOGOUT CONFIRMATION DIALOG
-  // ================================
-  void _showLogoutConfirmation(BuildContext parentContext, WidgetRef ref) {
+  // ---------------------------------------------------------------------------
+  // LOGOUT CONFIRMATION
+  // ---------------------------------------------------------------------------
+  void _showLogoutConfirmation(BuildContext context, WidgetRef ref) {
     showDialog(
-      context: parentContext,
+      context: context,
       builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
@@ -336,12 +247,13 @@ class ProfileScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(dialogCtx); // close dialog FIRST
+              Navigator.pop(dialogCtx);
 
               await ref.read(authProvider.notifier).logout();
 
-              /// IMPORTANT FIX — use parent context
-              Navigator.of(parentContext).pushNamedAndRemoveUntil(
+              if (!context.mounted) return;
+
+              Navigator.of(context).pushNamedAndRemoveUntil(
                 LoginScreen.routeName,
                 (route) => false,
               );

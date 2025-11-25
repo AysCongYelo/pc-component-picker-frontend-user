@@ -152,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ],
                         ),
                         child: Image.asset(
-                          'assets/Logo.png',
+                          'assets/aespa_logo.jpg',
                           fit: BoxFit.contain,
                         ),
                       ),

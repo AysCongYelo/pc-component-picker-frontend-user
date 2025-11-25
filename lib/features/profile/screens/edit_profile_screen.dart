@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../providers/profile_provider.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../services/profile_service.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   static const routeName = '/edit-profile';
@@ -16,20 +17,18 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  final ImagePicker _picker = ImagePicker();
+  final _picker = ImagePicker();
+  final _nameController = TextEditingController();
 
-  final TextEditingController _nameController = TextEditingController();
-
-  File? _pickedAvatar;
+  File? _newAvatar;
 
   @override
   void initState() {
     super.initState();
 
-    // Load initial profile data
-    final state = ref.read(profileProvider);
-    if (state.profile != null) {
-      _nameController.text = state.profile!.fullName;
+    final user = ref.read(authProvider).user;
+    if (user != null) {
+      _nameController.text = user["full_name"] ?? "";
     }
   }
 
@@ -39,64 +38,62 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    final file = await _picker.pickImage(source: source);
-    if (file != null) {
-      setState(() {
-        _pickedAvatar = File(file.path);
-      });
+  Future<void> _pick(ImageSource source) async {
+    final p = await _picker.pickImage(source: source);
+    if (p != null) {
+      setState(() => _newAvatar = File(p.path));
     }
   }
 
-  Future<void> _saveProfile() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final notifier = ref.read(profileProvider.notifier);
-
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    try {
-      // Save name
-      await notifier.updateName(_nameController.text.trim());
+    final service = ProfileService();
+    final notifier = ref.read(authProvider.notifier);
 
-      // If user changed avatar → upload
-      if (_pickedAvatar != null) {
-        await notifier.updateAvatar(_pickedAvatar!);
+    try {
+      // update name
+      await service.updateProfile(_nameController.text.trim());
+
+      // update avatar
+      if (_newAvatar != null) {
+        await service.updateAvatar(_newAvatar!);
       }
 
-      Navigator.pop(context); // close loader
-      Navigator.pop(context); // close screen
+      // refresh authProvider's user data
+      await notifier.refreshUserProfile();
+
+      Navigator.pop(context);
+      Navigator.pop(context);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Profile updated successfully!"),
+          content: Text("Profile updated!"),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       Navigator.pop(context);
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to update: $e"),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(profileProvider);
+    final auth = ref.watch(authProvider);
+    final user = auth.user;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Profile"), centerTitle: true),
-      body: state.status == ProfileStatus.loading
+      appBar: AppBar(title: const Text("Edit Profile")),
+      body: user == null
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -109,67 +106,57 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 60,
-                          backgroundImage: _pickedAvatar != null
-                              ? FileImage(_pickedAvatar!)
-                              : (state.profile?.avatarUrl != null
-                                    ? NetworkImage(state.profile!.avatarUrl!)
-                                    : const AssetImage(
-                                            'assets/default_profile.png',
-                                          )
-                                          as ImageProvider),
+                          backgroundImage: _newAvatar != null
+                              ? FileImage(_newAvatar!)
+                              : (user["avatar_url"] != null
+                                        ? NetworkImage(user["avatar_url"])
+                                        : const AssetImage("assets/user.png"))
+                                    as ImageProvider,
                         ),
                         Positioned(
                           bottom: 0,
                           right: 0,
                           child: CircleAvatar(
-                            backgroundColor: Theme.of(context).primaryColor,
                             child: IconButton(
                               icon: const Icon(
                                 Icons.camera_alt,
                                 color: Colors.white,
                               ),
-                              onPressed: _showImagePickerDialog,
+                              onPressed: () => _chooseSource(),
                             ),
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 35),
 
-                    // Name TextField
                     TextFormField(
                       controller: _nameController,
                       decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        prefixIcon: const Icon(Icons.person),
+                        labelText: "Full Name",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        prefixIcon: const Icon(Icons.person),
                       ),
-                      validator: (value) => value == null || value.isEmpty
+                      validator: (v) => v == null || v.trim().isEmpty
                           ? "Name required"
                           : null,
                     ),
 
-                    const SizedBox(height: 25),
+                    const SizedBox(height: 24),
 
-                    // SAVE BUTTON
                     SizedBox(
                       width: double.infinity,
-                      height: 55,
+                      height: 50,
                       child: ElevatedButton(
-                        onPressed: _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                        onPressed: _save,
                         child: const Text(
                           "Save Changes",
                           style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 18,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
@@ -177,17 +164,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
                     const SizedBox(height: 12),
 
-                    // CANCEL BUTTON
                     SizedBox(
                       width: double.infinity,
-                      height: 55,
+                      height: 50,
                       child: OutlinedButton(
                         onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
                         child: const Text("Cancel"),
                       ),
                     ),
@@ -198,26 +179,26 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
-  void _showImagePickerDialog() {
+  void _chooseSource() {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Select Image Source"),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text("Change avatar"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         actions: [
           TextButton(
+            child: const Text("Camera"),
             onPressed: () {
               Navigator.pop(context);
-              _pickImage(ImageSource.camera);
+              _pick(ImageSource.camera);
             },
-            child: const Text("Camera"),
           ),
           TextButton(
+            child: const Text("Gallery"),
             onPressed: () {
               Navigator.pop(context);
-              _pickImage(ImageSource.gallery);
+              _pick(ImageSource.gallery);
             },
-            child: const Text("Gallery"),
           ),
         ],
       ),
