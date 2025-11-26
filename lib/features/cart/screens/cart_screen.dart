@@ -15,6 +15,9 @@ class _CartScreenState extends State<CartScreen> {
   String? _error;
   List<Map<String, dynamic>> _items = [];
 
+  // ⭐ NEW — selected items for checkout
+  Set<String> _selectedItems = {};
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +36,7 @@ class _CartScreenState extends State<CartScreen> {
 
       setState(() {
         _items = items;
+        _selectedItems.clear(); // reset selection
         _loading = false;
       });
     } catch (e) {
@@ -41,6 +45,177 @@ class _CartScreenState extends State<CartScreen> {
         _loading = false;
       });
     }
+  }
+
+  Widget _summaryRow(
+    String label,
+    String value, {
+    bool bold = false,
+    bool big = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: big ? 18 : 14,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: big ? 20 : 14,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              color: bold ? Colors.blue : Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCheckoutDialog() {
+    final selected = _items
+        .where((item) => _selectedItems.contains(item["id"]))
+        .toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          maxChildSize: 0.9,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+
+                  const Text(
+                    "Order Summary",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---------------- ITEMS LIST ----------------
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: selected.length,
+                      itemBuilder: (context, i) {
+                        final item = selected[i];
+                        final name = _itemDisplayName(item);
+                        final price = _itemDisplayPrice(item);
+                        final qty = item["quantity"] ?? 1;
+
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(name),
+                          subtitle: Text("Qty: $qty"),
+                          trailing: Text(
+                            "₱$price",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // ---------------- TOTAL SUMMARY ----------------
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        _summaryRow(
+                          "Subtotal",
+                          "₱${selectedTotal.toStringAsFixed(2)}",
+                        ),
+                        _summaryRow("Shipping Fee", "₱150.00"),
+                        _summaryRow("Tax", "₱0.00"),
+                        const Divider(),
+                        _summaryRow(
+                          "Total",
+                          "₱${(selectedTotal + 150).toStringAsFixed(2)}",
+                          bold: true,
+                          big: true,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ---------------- CONFIRM BUTTON ----------------
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              "Order placed for ${_selectedItems.length} items!",
+                            ),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Confirm Order",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _removeItem(String itemId) async {
@@ -68,72 +243,58 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  // -----------------------------------------------------------
-  // NAME HANDLER (component, saved build, temp build)
-  // -----------------------------------------------------------
+  // ---------------- NAME HANDLER ----------------
   String _itemDisplayName(Map<String, dynamic> item) {
-    if (item["component_name"] != null) {
-      return item["component_name"];
-    }
-
-    if (item["build_name"] != null) {
-      return "Saved Build: ${item["build_name"]}";
-    }
-
-    if (item["category"] == "temp_build") {
-      return "Temporary Build";
-    }
-
+    if (item["component_name"] != null) return item["component_name"];
+    if (item["build_name"] != null) return "Saved Build: ${item["build_name"]}";
+    if (item["category"] == "temp_build") return "Temporary Build";
     return "Unknown Item";
   }
 
-  // -----------------------------------------------------------
-  // PRICE HANDLER
-  // -----------------------------------------------------------
+  // ---------------- PRICE HANDLER ----------------
   String _itemDisplayPrice(Map<String, dynamic> item) {
-    if (item["component_price"] != null) {
+    if (item["component_price"] != null)
       return item["component_price"].toString();
-    }
-
-    if (item["build_total_price"] != null) {
+    if (item["build_total_price"] != null)
       return item["build_total_price"].toString();
-    }
-
-    if (item["price"] != null) {
-      return item["price"].toString();
-    }
-
+    if (item["price"] != null) return item["price"].toString();
     return "0";
   }
 
-  // -----------------------------------------------------------
-  // TOTAL PRICE (SUM OF ANY TYPE)
-  // -----------------------------------------------------------
+  // ---------------- TOTAL PRICE ----------------
   double get totalPrice {
     return _items.fold(0, (sum, item) {
-      // component item
       if (item["component_price"] != null) {
         return sum + (double.tryParse(item["component_price"].toString()) ?? 0);
       }
-
-      // saved build item
       if (item["build_total_price"] != null) {
         return sum +
             (double.tryParse(item["build_total_price"].toString()) ?? 0);
       }
-
-      // temp build item
       if (item["price"] != null) {
         return sum + (double.tryParse(item["price"].toString()) ?? 0);
       }
-
       return sum;
     });
   }
 
-  // -----------------------------------------------------------
-  // CATEGORY ICON HANDLER
-  // -----------------------------------------------------------
+  // ---------------- SELECTED TOTAL ----------------
+  double get selectedTotal {
+    return _items.where((item) => _selectedItems.contains(item["id"])).fold(0, (
+      sum,
+      item,
+    ) {
+      if (item["component_price"] != null) {
+        return sum + double.tryParse(item["component_price"].toString())!;
+      }
+      if (item["build_total_price"] != null) {
+        return sum + double.tryParse(item["build_total_price"].toString())!;
+      }
+      return sum + (double.tryParse(item["price"].toString()) ?? 0);
+    });
+  }
+
+  // ---------------- CATEGORY ICON ----------------
   IconData _getCategoryIcon(String? category) {
     if (category == null) return Icons.computer;
 
@@ -156,23 +317,16 @@ class _CartScreenState extends State<CartScreen> {
       case "cpu_cooler":
       case "cooler":
         return Icons.ac_unit;
-
-      // New
       case "build_bundle":
         return Icons.build_circle;
-
-      // New
       case "temp_build":
         return Icons.engineering;
-
       default:
         return Icons.computer;
     }
   }
 
-  // -----------------------------------------------------------
-  // UI
-  // -----------------------------------------------------------
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -192,15 +346,71 @@ class _CartScreenState extends State<CartScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  // ---------------- SELECT ALL ----------------
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Select All",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Checkbox(
+                        value:
+                            _selectedItems.length == _items.length &&
+                            _items.isNotEmpty,
+                        onChanged: (checked) {
+                          setState(() {
+                            if (checked == true) {
+                              _selectedItems = _items
+                                  .map((e) => e["id"].toString())
+                                  .toSet();
+                            } else {
+                              _selectedItems.clear();
+                            }
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
                   ..._items.map(_cartItemTile),
                   const SizedBox(height: 20),
+
                   _buildTotalCard(),
+                  const SizedBox(height: 20),
+
+                  // ---------------- CHECKOUT BUTTON ----------------
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.payment),
+                    label: Text(
+                      "Checkout (${_selectedItems.length})",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: _selectedItems.isEmpty
+                        ? null
+                        : _showCheckoutDialog,
+                  ),
                 ],
               ),
             ),
     );
   }
 
+  // ---------------- CART ITEM TILE ----------------
   Widget _cartItemTile(Map<String, dynamic> item) {
     final name = _itemDisplayName(item);
     final price = _itemDisplayPrice(item);
@@ -225,7 +435,21 @@ class _CartScreenState extends State<CartScreen> {
       ),
       child: Row(
         children: [
-          // Category Icon
+          // ---------------- CHECKBOX ----------------
+          Checkbox(
+            value: _selectedItems.contains(item["id"]),
+            onChanged: (value) {
+              setState(() {
+                if (value == true) {
+                  _selectedItems.add(item["id"]);
+                } else {
+                  _selectedItems.remove(item["id"]);
+                }
+              });
+            },
+          ),
+
+          // ---------------- ICON ----------------
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -241,7 +465,7 @@ class _CartScreenState extends State<CartScreen> {
 
           const SizedBox(width: 16),
 
-          // Info
+          // ---------------- DETAILS ----------------
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,16 +492,14 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ),
 
-          // Quantity Controls
+          // ---------------- QUANTITY ----------------
           if (category != "build_bundle" && category != "temp_build") ...[
             Row(
               children: [
-                // MINUS BUTTON
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: () => _removeItem(item["id"]),
                 ),
-
                 Text(
                   "$quantity",
                   style: const TextStyle(
@@ -285,8 +507,6 @@ class _CartScreenState extends State<CartScreen> {
                     fontSize: 16,
                   ),
                 ),
-
-                // PLUS BUTTON
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () async {
@@ -298,7 +518,7 @@ class _CartScreenState extends State<CartScreen> {
             ),
           ],
 
-          // Delete button (for entire row)
+          // ---------------- DELETE FULL ROW ----------------
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
             onPressed: () async {
@@ -331,6 +551,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  // ---------------- TOTAL CARD ----------------
   Widget _buildTotalCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -366,6 +587,7 @@ class _CartScreenState extends State<CartScreen> {
     );
   }
 
+  // ---------------- EMPTY STATE ----------------
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
