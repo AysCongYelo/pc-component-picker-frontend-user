@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/core/services/api_client_provider.dart';
 
-import 'package:frontend/features/auth/providers/auth_provider.dart';
+import 'package:frontend/features/build/services/build_service.dart';
 import 'package:frontend/features/build/providers/build_provider.dart';
 import 'package:frontend/features/navigation/providers/nav_provider.dart';
-import 'package:frontend/features/build/services/build_service.dart';
+import 'package:frontend/features/auth/providers/auth_provider.dart';
+import 'package:frontend/core/services/api_client.dart';
 
 class AutoBuildDialog {
   static void show(BuildContext context, WidgetRef ref) {
@@ -14,9 +16,9 @@ class AutoBuildDialog {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (_, setState) {
             return Dialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -27,10 +29,6 @@ class AutoBuildDialog {
               ),
               child: Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -48,7 +46,7 @@ class AutoBuildDialog {
                     ),
                     const SizedBox(height: 24),
 
-                    /// PURPOSE GRID
+                    // PURPOSE GRID
                     GridView.count(
                       shrinkWrap: true,
                       crossAxisCount: 2,
@@ -102,19 +100,21 @@ class AutoBuildDialog {
                       min: 25000,
                       max: 150000,
                       activeColor: Colors.blue,
+                      divisions: 25,
+                      label: "₱${budget.toInt()}",
                       onChanged: (v) => setState(() => budget = v),
                     ),
 
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
 
-                    /// GENERATE BUTTON
+                    // GENERATE BUTTON
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () async {
-                          /// Show loading overlay
+                          // Show loader (above dialog)
                           showDialog(
-                            context: context,
+                            context: dialogContext,
                             barrierDismissible: false,
                             builder: (_) => const Center(
                               child: CircularProgressIndicator(),
@@ -122,23 +122,23 @@ class AutoBuildDialog {
                           );
 
                           try {
-                            /// USE provider-based ApiClient — with token!
+                            // USE API CLIENT WITH TOKEN
                             final api = ref.read(apiClientProvider);
+                            final buildService = BuildService(api);
 
-                            final service = BuildService(api);
-
-                            final res = await service.autoBuild(
+                            final res = await buildService.autoBuild(
                               selected,
                               budget.toInt(),
                             );
 
+                            // TRY TO EXTRACT BUILD RESULT
                             final build =
                                 res['build'] ??
                                 res['data']?['build'] ??
                                 res['data'];
 
                             if (build == null) {
-                              Navigator.of(context).pop(); // loader
+                              Navigator.of(dialogContext).pop(); // loader
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text("Auto build returned no data"),
@@ -147,21 +147,26 @@ class AutoBuildDialog {
                               return;
                             }
 
-                            /// Update temp build
+                            // UPDATE TEMP BUILD PROVIDER
                             ref
                                 .read(buildProvider.notifier)
-                                .setTempBuild(Map<String, dynamic>.from(build));
+                                .setTempBuild(
+                                  Map<String, dynamic>.from(build),
+                                  Map<String, dynamic>.from(
+                                    res["summary"] ?? {},
+                                  ),
+                                );
 
-                            /// Switch to Build tab
+                            // SWITCH TO BUILD TAB
                             ref.read(navIndexProvider.notifier).state = 1;
 
-                            /// Close the loading then the dialog
-                            Navigator.of(context).pop(); // close loader
-                            Navigator.of(context).pop(); // close dialog
+                            // CLOSE LOADER then DIALOG
+                            Navigator.of(dialogContext).pop(); // loader
+                            Navigator.of(context).pop(); // dialog
                           } catch (e) {
-                            Navigator.of(context).pop(); // loader
+                            Navigator.of(dialogContext).pop(); // loader
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Auto build failed: $e')),
+                              SnackBar(content: Text("Auto build failed: $e")),
                             );
                           }
                         },
@@ -192,6 +197,7 @@ class AutoBuildDialog {
     );
   }
 
+  // PURPOSE CARD WIDGET
   static Widget _purposeCard({
     required String label,
     required IconData icon,

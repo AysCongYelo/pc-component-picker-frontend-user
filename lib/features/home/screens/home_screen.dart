@@ -6,10 +6,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:frontend/features/build/providers/build_provider.dart';
+import 'package:frontend/features/home/screens/featured_build_detail_screen.dart';
+import 'package:frontend/features/navigation/providers/nav_provider.dart';
+import '/features/home/widgets/auto_build_dialog.dart';
+import 'package:frontend/features/cart/screens/cart_screen.dart';
 
 import '../providers/featured_provider.dart';
 import '../providers/trending_provider.dart';
-import '../providers/autobuild_provider.dart';
+import '../providers/auto_build_provider.dart';
 import 'autobuild_result_screen.dart';
 
 const String LOCAL_TEST_BANNER =
@@ -37,36 +42,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       await notifier.generateAutoBuild(purpose: purpose, budget: budget);
 
-      final state = ref.read(autoBuildProvider);
-
-      state.when(
-        data: (result) {
-          // navigate using host context (not dialog context)
-          if (!mounted) return;
-          Navigator.pushNamed(
-            hostContext,
-            AutoBuildResultScreen.routeName,
-            arguments: result,
-          );
-        },
-        loading: () {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            hostContext,
-          ).showSnackBar(const SnackBar(content: Text('Generating build...')));
-        },
-        error: (err, st) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            hostContext,
-          ).showSnackBar(SnackBar(content: Text('AutoBuild failed: $err')));
-        },
-      );
+      // Success → switch to Build tab
+      ref.read(navIndexProvider.notifier).state = 1;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         hostContext,
-      ).showSnackBar(SnackBar(content: Text('Failed to generate build: $e')));
+      ).showSnackBar(SnackBar(content: Text("AutoBuild failed: $e")));
     }
   }
 
@@ -532,8 +514,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           icon: const Icon(Icons.search, color: Colors.white),
                         ),
                         IconButton(
-                          onPressed: () =>
-                              Navigator.pushNamed(context, '/cart'),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CartScreen(),
+                              ),
+                            );
+                          },
                           icon: const Icon(
                             Icons.shopping_cart_outlined,
                             color: Colors.white,
@@ -564,7 +552,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => _showPurposeSelectionDialog(context),
+                    onTap: () => AutoBuildDialog.show(context, ref),
+
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
@@ -646,7 +635,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // Featured list
               SizedBox(
-                height: 220,
+                height: 260,
                 child: featured.when(
                   data: (list) {
                     if (list.isEmpty)
@@ -672,7 +661,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           price: price,
                           onTap: () => Navigator.pushNamed(
                             context,
-                            '//featuredbuildspublic',
+                            FeaturedBuildDetailScreen.routeName,
                             arguments: b,
                           ),
                         );
@@ -819,6 +808,7 @@ class _FeaturedCard extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(
@@ -855,6 +845,8 @@ class _FeaturedCard extends StatelessWidget {
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
+                      maxLines: 1, // FIX #2
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -874,6 +866,7 @@ class _FeaturedCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    const SizedBox(height: 4),
                   ],
                 ),
               ),

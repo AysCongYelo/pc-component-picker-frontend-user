@@ -1,11 +1,17 @@
-import 'package:dio/dio.dart';
-import 'package:frontend/core/constants/env.dart';
+import 'package:frontend/core/services/api_client.dart';
 
 class TrendingService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: Env.apiBaseUrl));
+  final ApiClient api;
+
+  TrendingService(this.api);
 
   Future<List<dynamic>> getTrendingComponents() async {
-    final res = await _dio.get('/componentspublic/trending');
-    return res.data['data'] ?? [];
+    final res = await api.get('/componentspublic/trending');
+
+    if (res is Map && res['data'] != null) {
+      return res['data'] as List<dynamic>;
+    }
+
+    return [];
   }
 }
