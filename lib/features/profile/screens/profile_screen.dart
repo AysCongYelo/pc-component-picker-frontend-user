@@ -34,8 +34,11 @@ class ProfileScreen extends ConsumerWidget {
                 icon: Icons.history,
                 title: "Order History",
                 subtitle: "View your past orders",
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushNamed(context, "/my-orders");
+                },
               ),
+
               _menu(
                 icon: Icons.bookmark,
                 title: "Saved Builds",

@@ -79,6 +79,8 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _showCheckoutDialog() {
+    final parentContext = context; // <-- ADD THIS
+
     final selected = _items
         .where((item) => _selectedItems.contains(item["id"]))
         .toList();
@@ -189,17 +191,38 @@ class _CartScreenState extends State<CartScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
                         Navigator.pop(context);
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              "Order placed for ${_selectedItems.length} items!",
+                        try {
+                          final res = await _api.post("/checkout", {
+                            "item_ids": _selectedItems.toList(),
+                            "payment_method": "cod",
+                            "notes": null,
+                          });
+
+                          final orderId = res["order"]["id"];
+
+                          if (!mounted) return;
+
+                          Navigator.pushReplacementNamed(
+                            parentContext, // ✔ SAFE
+                            "/order-success",
+                            arguments: {"orderId": orderId},
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+
+                          ScaffoldMessenger.of(parentContext).showSnackBar(
+                            // ✔ SAFE
+                            SnackBar(
+                              content: Text("Checkout failed: $e"),
+                              backgroundColor: Colors.red,
                             ),
-                          ),
-                        );
+                          );
+                        }
                       },
+
                       child: const Text(
                         "Confirm Order",
                         style: TextStyle(

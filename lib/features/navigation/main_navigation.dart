@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../home/screens/home_screen.dart';
 import '../../features/build/screens/build_screen.dart';
-import '../../features/save/screens/saved_screen.dart';
+import '../../features/save/screens/saved_builds_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 
 import 'providers/nav_provider.dart';

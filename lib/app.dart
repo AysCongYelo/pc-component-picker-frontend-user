@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:frontend/features/home/screens/search_screen.dart';
+import 'features/save/screens/saved_builds_screen.dart';
+import 'features/orders/orders_list_screen.dart';
 
 // AUTH
 import 'features/auth/providers/auth_provider.dart';
@@ -14,6 +17,7 @@ import 'features/navigation/main_navigation.dart';
 
 // PROFILE
 import 'features/profile/screens/edit_profile_screen.dart';
+import 'features/orders/order_success_screen.dart';
 
 // HOME / FEATURED / AUTOBUILD
 import 'features/home/screens/featured_build_detail_screen.dart';
@@ -50,16 +54,28 @@ class MyApp extends ConsumerWidget {
         IntroScreen.routeName: (_) => const IntroScreen(),
         EditProfileScreen.routeName: (_) => const EditProfileScreen(),
 
-        // FEATURED BUILD DETAILS (no constructor args)
-        FeaturedBuildDetailScreen.routeName: (ctx) =>
+        // FEATURED
+        FeaturedBuildDetailScreen.routeName: (_) =>
             const FeaturedBuildDetailScreen(),
 
-        // AUTOBUILD RESULT SCREEN
+        // AUTOBUILD
         AutoBuildResultScreen.routeName: (ctx) {
           final result =
               ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
           return AutoBuildResultScreen(result: result);
         },
+
+        // ORDERS
+        "/order-success": (ctx) {
+          final args =
+              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
+          return OrderSuccessScreen(orderId: args["orderId"]);
+        },
+        "/my-orders": (_) => const OrdersListScreen(),
+
+        // ⭐ SAVED BUILDS ROUTE (ADD THIS)
+        "/saved": (_) => const SavedBuildsPage(),
+        "/search": (_) => const SearchScreen(),
       },
     );
   }
