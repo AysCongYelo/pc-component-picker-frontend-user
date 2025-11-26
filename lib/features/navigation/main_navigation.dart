@@ -17,11 +17,12 @@ class MainNavigation extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final index = ref.watch(navIndexProvider);
 
+    // IMPORTANT: No more const — prevents login bypass
     final pages = [
-      const HomeScreen(),
-      const BuildTab(),
-      const SavedBuildsPage(),
-      const ProfileScreen(),
+      HomeScreen(),
+      BuildTab(),
+      SavedBuildsPage(),
+      ProfileScreen(),
     ];
 
     return Scaffold(
