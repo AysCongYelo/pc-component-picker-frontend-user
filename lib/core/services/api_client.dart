@@ -50,4 +50,9 @@ class ApiClient {
     final res = await _dio.delete(path);
     return res.data;
   }
+
+  Future<dynamic> put(String path, dynamic data) async {
+    final res = await _dio.put(path, data: data);
+    return res.data;
+  }
 }
