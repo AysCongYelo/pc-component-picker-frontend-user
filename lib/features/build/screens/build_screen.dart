@@ -260,8 +260,17 @@ class BuildTab extends ConsumerWidget {
                             .read(buildProvider.notifier)
                             .save(name);
 
+                        // ⭐ Optional: clear temp builder state
+                        ref.read(buildProvider.notifier).loadTempBuild();
+
+                        // ⭐ Navigate to Saved Builds
+                        Navigator.pushNamed(context, "/saved");
+
+                        // Optional success toast
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Saved! Build ID: $id")),
+                          const SnackBar(
+                            content: Text("Build saved successfully!"),
+                          ),
                         );
                       } catch (e) {
                         ScaffoldMessenger.of(
