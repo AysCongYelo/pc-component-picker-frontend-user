@@ -1,11 +1,17 @@
-import 'package:dio/dio.dart';
-import 'package:frontend/core/constants/env.dart';
+import 'package:frontend/core/services/api_client.dart';
 
 class FeaturedService {
-  final Dio _dio = Dio(BaseOptions(baseUrl: Env.apiBaseUrl));
+  final ApiClient api;
+
+  FeaturedService(this.api);
 
   Future<List<dynamic>> getFeaturedBuilds() async {
-    final res = await _dio.get('/featuredbuildspublic/featured');
-    return res.data['data'] ?? [];
+    final res = await api.get('/featuredbuildspublic');
+
+    if (res is Map && res['data'] != null) {
+      return res['data'] as List<dynamic>;
+    }
+
+    return [];
   }
 }

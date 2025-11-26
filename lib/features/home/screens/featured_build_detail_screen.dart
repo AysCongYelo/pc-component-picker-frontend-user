@@ -3,26 +3,26 @@ import 'package:flutter/material.dart';
 class FeaturedBuildDetailScreen extends StatelessWidget {
   static const routeName = "/featured-build-detail";
 
-  final Map<String, dynamic> featuredBuild;
-
-  const FeaturedBuildDetailScreen({super.key, required this.featuredBuild});
+  const FeaturedBuildDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final featuredBuild =
+        ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+
     final List items = featuredBuild['items'] ?? [];
 
-    // COMPUTE TOTAL WATTAGE IF AVAILABLE
+    // COMPUTE TOTAL WATTAGE
     int totalWattage = 0;
     for (final item in items) {
-      final comp = item["component"];
-      if (comp != null && comp["wattage"] != null) {
-        totalWattage += (comp["wattage"] as num?)?.toInt() ?? 0;
+      final comp = item["components"];
+      if (comp != null && comp["specs"]?["tdp"] != null) {
+        totalWattage += comp["specs"]["tdp"] as int;
       }
     }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-
       appBar: AppBar(
         title: const Text("Featured Build"),
         backgroundColor: const Color(0xFF1976D2),
@@ -34,7 +34,7 @@ class FeaturedBuildDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TITLE --------------------------------------------------
+            /// TITLE
             Text(
               featuredBuild["title"] ?? "",
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
@@ -42,15 +42,16 @@ class FeaturedBuildDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            // DESCRIPTION -------------------------------------------
+            /// DESCRIPTION (fixed overflow)
             Text(
               featuredBuild["description"] ?? "",
               style: TextStyle(fontSize: 15, color: Colors.grey[700]),
+              softWrap: true,
             ),
 
             const SizedBox(height: 20),
 
-            // INCLUDED COMPONENTS -----------------------------------
+            /// INCLUDED COMPONENTS
             const Text(
               "Included Components",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -58,75 +59,86 @@ class FeaturedBuildDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
-            Column(
-              children: items.map((item) {
-                final comp = item["component"];
-                if (comp == null) return const SizedBox();
+            if (items.isEmpty)
+              const Text(
+                "No components assigned yet.",
+                style: TextStyle(color: Colors.grey),
+              ),
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 6,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          comp["image_url"],
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
+            ...items.map((item) {
+              final comp = item["components"];
+              if (comp == null) return const SizedBox();
 
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              comp["name"],
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: comp["image_url"] != null
+                          ? Image.network(
+                              comp["image_url"],
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              width: 50,
+                              height: 50,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.memory),
                             ),
-                            Text(
-                              comp["brand"],
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      ),
+                    ),
 
-                      Text(
-                        "₱${comp["price"]}",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            comp["name"] ?? "Unknown Component",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            comp["brand"] ?? "",
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
+                    ),
+
+                    Text(
+                      "₱${comp["price"] ?? '-'}",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.blue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
 
             const SizedBox(height: 25),
 
-            // SUMMARY SECTION ---------------------------------------
+            /// SUMMARY SECTION
             const Text(
               "Summary",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -151,7 +163,7 @@ class FeaturedBuildDetailScreen extends StatelessWidget {
                 children: [
                   _summaryRow(
                     "Total Price",
-                    "₱${featuredBuild["total_price"]}",
+                    "₱${featuredBuild["total_price"] ?? 0}",
                   ),
                   const SizedBox(height: 8),
                   _summaryRow("Total Wattage", "$totalWattage W"),
