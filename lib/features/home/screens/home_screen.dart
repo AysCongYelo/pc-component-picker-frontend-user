@@ -6,8 +6,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:frontend/core/services/api_client_provider.dart';
 import 'package:frontend/features/build/providers/build_provider.dart';
+import 'package:frontend/features/home/screens/component_detail_screen.dart';
 import 'package:frontend/features/home/screens/featured_build_detail_screen.dart';
+import 'package:frontend/features/home/widgets/carousel_banner.dart';
 import 'package:frontend/features/navigation/providers/nav_provider.dart';
 import '/features/home/widgets/auto_build_dialog.dart';
 import 'package:frontend/features/cart/screens/cart_screen.dart';
@@ -16,9 +19,8 @@ import '../providers/featured_provider.dart';
 import '../providers/trending_provider.dart';
 import '../providers/auto_build_provider.dart';
 import 'autobuild_result_screen.dart';
-
-const String LOCAL_TEST_BANNER =
-    '/mnt/data/Screenshot_2025-11-23-19-56-13-066_com.example.beginprac-edit.jpg';
+import '../data/tips_data.dart';
+import '../widgets/tips/tip_card.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   static const routeName = '/home';
@@ -29,6 +31,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const String FALLBACK_IMAGE = "assets/banners/autobuild.jpg";
   String? selectedPurpose;
 
   // Trigger the auto-build using provider, await result, then navigate
@@ -436,36 +439,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildHeroBanner(String imageUrl) {
-    if (imageUrl.startsWith('/')) {
-      final f = File(imageUrl);
-      return SizedBox(
-        height: 160,
-        width: double.infinity,
-        child: f.existsSync()
-            ? Image.file(f, fit: BoxFit.cover)
-            : Container(color: Colors.blueGrey[200]),
-      );
-    } else if (imageUrl.startsWith('http')) {
-      return SizedBox(
-        height: 160,
-        width: double.infinity,
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          placeholder: (_, __) => Container(color: Colors.blue[100]),
-          errorWidget: (_, __, ___) => Container(color: Colors.blueGrey[200]),
-        ),
-      );
-    } else {
-      return SizedBox(
-        height: 160,
-        width: double.infinity,
-        child: Container(color: Colors.blueGrey[200]),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final featured = ref.watch(featuredBuildsProvider);
@@ -537,10 +510,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: _buildHeroBanner(LOCAL_TEST_BANNER),
-                ),
+                child: const CarouselBanner(),
               ),
 
               const SizedBox(height: 16),
@@ -652,8 +622,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         final price = b['price'] != null
                             ? '₱${b['price']}'
                             : '₱0';
-                        final image = (b['image_url'] ?? LOCAL_TEST_BANNER)
+
+                        final image = (b['image_url'] ?? FALLBACK_IMAGE)
                             .toString();
+
                         return _FeaturedCard(
                           imageUrl: image,
                           title: title,
@@ -678,6 +650,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 18),
 
               // Trending header
+              // Trending header
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
@@ -701,24 +674,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: trending.when(
                   data: (list) {
                     if (list.isEmpty) return const Text('No trending items');
+
                     return Column(
                       children: list.map((c) {
                         final name = (c['name'] ?? 'Unknown').toString();
                         final category = (c['category'] ?? 'Component')
                             .toString();
-                        final img = (c['image_url'] ?? LOCAL_TEST_BANNER)
+
+                        final img = (c['image_url'] ?? FALLBACK_IMAGE)
                             .toString();
+
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           child: _TrendingListItem(
                             title: name,
                             subtitle: category,
                             imageUrl: img,
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              '/component',
-                              arguments: c,
-                            ),
+
+                            onTap: () async {
+                              final api = ref.read(apiClientProvider);
+
+                              // Load spinner
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+
+                              try {
+                                // 🔥 Fetch full component details + specs
+                                final full = await api.get(
+                                  "/componentspublic/${c['id']}",
+                                );
+
+                                if (!mounted) return;
+
+                                Navigator.pop(context); // close loader
+
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ComponentDetailScreen(
+                                      component: full["data"],
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                Navigator.pop(context);
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Failed to load details: $e"),
+                                  ),
+                                );
+                              }
+                            },
                           ),
                         );
                       }).toList(),
@@ -751,17 +763,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 12),
+
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _InfoCard(
-                  imageUrl: LOCAL_TEST_BANNER,
-                  title: 'How to Choose the Right Graphics Card',
-                  description: 'Learn how to select the perfect GPU',
-                  onReadMore: () =>
-                      Navigator.pushNamed(context, '/article-detail'),
+                child: Column(
+                  children: [
+                    for (final tip in tipsData)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: TipCard(
+                          title: tip["title"] as String,
+                          description: tip["description"] as String,
+                          image: tip["image"] as String,
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              "/article-detail",
+                              arguments: {
+                                "title": tip["title"],
+                                "image": tip["image"],
+                                "content": tip["content"],
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                  ],
                 ),
               ),
+
               const SizedBox(height: 28),
             ],
           ),

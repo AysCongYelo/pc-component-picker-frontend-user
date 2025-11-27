@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/features/home/screens/component_detail_screen.dart';
 
 class TrendingPlaceholder extends StatelessWidget {
   final List<Map<String, dynamic>> items;
@@ -7,7 +8,6 @@ class TrendingPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 If no trending items
     if (items.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -34,7 +34,6 @@ class TrendingPlaceholder extends StatelessWidget {
       );
     }
 
-    // 🔥 If trending items exist
     return SizedBox(
       height: 180,
       child: ListView.builder(
@@ -45,11 +44,11 @@ class TrendingPlaceholder extends StatelessWidget {
 
           return GestureDetector(
             onTap: () {
-              // TEMPORARY – No ProductDetail screen yet
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("Clicked: ${item['name']}"),
-                  duration: const Duration(milliseconds: 800),
+              // ⭐ OPEN COMPONENT DETAILS
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ComponentDetailScreen(component: item),
                 ),
               );
             },
@@ -71,10 +70,29 @@ class TrendingPlaceholder extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.memory, size: 40, color: Colors.blue),
+                  // IF no image, show icon
+                  if (item["image_url"] == null ||
+                      item["image_url"].toString().isEmpty)
+                    const Icon(Icons.memory, size: 40, color: Colors.blue)
+                  else
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        item["image_url"],
+                        height: 50,
+                        width: 50,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.memory,
+                          size: 40,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ),
+
                   const SizedBox(height: 12),
                   Text(
-                    item["name"],
+                    item["name"] ?? "Unknown",
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
