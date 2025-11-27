@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/api_client_provider.dart';
+import 'component_detail_screen.dart'; // ← ADD THIS (import detail screen)
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -22,10 +23,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     try {
       final api = ref.read(apiClientProvider);
-      final res = await api.get("/search?query=$query");
+      final res = await api.get("/componentspublic?search=$query");
 
       setState(() {
-        _results = res["results"] ?? [];
+        _results = (res["data"] as List?) ?? [];
       });
     } catch (e) {
       ScaffoldMessenger.of(
@@ -42,13 +43,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       appBar: AppBar(title: const Text("Search")),
       body: Column(
         children: [
-          // SEARCH BAR
+          // SEARCH INPUT
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
               controller: _controller,
               decoration: InputDecoration(
-                hintText: "Search components or builds...",
+                hintText: "Search components…",
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.search),
                   onPressed: _search,
@@ -61,22 +62,77 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
 
-          // RESULTS
+          // RESULTS LIST
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
+                : _results.isEmpty
+                ? const Center(child: Text("No results found"))
                 : ListView.builder(
                     itemCount: _results.length,
                     itemBuilder: (_, i) {
                       final item = _results[i];
-                      return ListTile(
-                        title: Text(item["name"] ?? "No name"),
-                        subtitle: Text(
-                          "₱${item["price"] ?? "—"} | ${item["category"] ?? ""}",
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
                         ),
-                        onTap: () {
-                          // TODO: Navigate to detail page
-                        },
+                        child: ListTile(
+                          leading: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              item["image_url"] ?? "",
+                              width: 60,
+                              height: 60,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const Icon(Icons.image_not_supported),
+                            ),
+                          ),
+
+                          title: Text(
+                            item["name"] ?? "No name",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "₱${item["price"] ?? "—"}",
+                                style: const TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item["brand"] ?? "",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          trailing: const Icon(
+                            Icons.arrow_forward_ios,
+                            size: 16,
+                          ),
+
+                          // TAP -> DETAILS PAGE
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ComponentDetailScreen(component: item),
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
