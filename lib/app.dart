@@ -3,6 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/features/home/screens/search_screen.dart';
+
+// ADD THIS
+import 'features/home/screens/article_detail_screen.dart';
+
 import 'features/save/screens/saved_builds_screen.dart';
 import 'features/orders/orders_list_screen.dart';
 
@@ -38,7 +42,6 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light(),
 
-      // Choose first screen depending on auth state
       home: Builder(
         builder: (_) {
           if (auth.isLoading) return const SplashScreen();
@@ -73,9 +76,20 @@ class MyApp extends ConsumerWidget {
         },
         "/my-orders": (_) => const OrdersListScreen(),
 
-        // ⭐ SAVED BUILDS ROUTE (ADD THIS)
+        // SAVED, SEARCH
         "/saved": (_) => const SavedBuildsPage(),
         "/search": (_) => const SearchScreen(),
+
+        // ⭐ ADD THE ARTICLE ROUTE
+        ArticleDetailScreen.routeName: (ctx) {
+          final args =
+              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
+          return ArticleDetailScreen(
+            title: args["title"],
+            image: args["image"],
+            content: args["content"],
+          );
+        },
       },
     );
   }
