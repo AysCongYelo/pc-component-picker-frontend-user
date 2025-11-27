@@ -37,6 +37,7 @@ class BuildComponentsScreen extends ConsumerWidget {
             itemCount: components.length,
             itemBuilder: (context, i) {
               final comp = components[i];
+
               return Card(
                 child: ListTile(
                   leading: comp["image_url"] != null
@@ -45,13 +46,14 @@ class BuildComponentsScreen extends ConsumerWidget {
                   title: Text(comp["name"]),
                   subtitle: Text("₱${comp["price"]}"),
                   onTap: () async {
-                    // ➤ Add component to temp build
+                    // Add component
                     await ref
                         .read(buildProvider.notifier)
                         .addComponent(category, comp["id"]);
 
-                    // Go back to Build Tab
-                    Navigator.pop(context);
+                    // ⭐ Auto back to BuildTab
+                    Navigator.pop(context); // exit components screen
+                    Navigator.pop(context); // exit category screen
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("${comp["name"]} added!")),

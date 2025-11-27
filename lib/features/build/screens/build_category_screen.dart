@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'build_components_screen.dart';
 
 class BuildCategoryScreen extends StatelessWidget {
-  final String? preselectedCategory; // ⭐ new
+  final String? preselectedCategory;
+  final Set<String> selectedCategories; // ⭐ NEW
 
-  const BuildCategoryScreen({super.key, this.preselectedCategory});
+  const BuildCategoryScreen({
+    super.key,
+    this.preselectedCategory,
+    this.selectedCategories = const {},
+  });
 
   static const routeName = '/build-category';
 
@@ -42,44 +47,66 @@ class BuildCategoryScreen extends StatelessWidget {
               preselectedCategory != null &&
               preselectedCategory == cat["value"];
 
-          return Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: isHighlighted
-                  ? Colors.blue.withOpacity(0.12) // ⭐ highlight category
-                  : Colors.white,
-              border: isHighlighted
-                  ? Border.all(color: Colors.blueAccent, width: 2)
-                  : null,
-            ),
-            child: ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              leading: Icon(
-                cat["icon"],
-                color: isHighlighted ? Colors.blueAccent : Colors.grey[700],
-              ),
-              title: Text(
-                cat["label"],
-                style: TextStyle(
-                  fontWeight: isHighlighted
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                  color: isHighlighted ? Colors.blueAccent : Colors.black87,
-                ),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+          final bool isSelectedAlready = selectedCategories.contains(
+            cat["value"],
+          ); // ⭐ NEW
 
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        BuildComponentsScreen(category: cat["value"]),
+          return Opacity(
+            opacity: isSelectedAlready ? 0.4 : 1.0, // ⭐ gray out selected
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: isHighlighted
+                    ? Colors.blue.withOpacity(0.12)
+                    : Colors.white,
+                border: isHighlighted
+                    ? Border.all(color: Colors.blueAccent, width: 2)
+                    : null,
+              ),
+              child: ListTile(
+                enabled: !isSelectedAlready, // ⭐ cannot tap
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: Icon(
+                  cat["icon"],
+                  color: isSelectedAlready
+                      ? Colors.grey
+                      : isHighlighted
+                      ? Colors.blueAccent
+                      : Colors.grey[700],
+                ),
+                title: Text(
+                  cat["label"],
+                  style: TextStyle(
+                    fontWeight: isHighlighted
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelectedAlready
+                        ? Colors.grey
+                        : isHighlighted
+                        ? Colors.blueAccent
+                        : Colors.black87,
                   ),
-                );
-              },
+                ),
+
+                // ⭐ checkmark or arrow
+                trailing: isSelectedAlready
+                    ? const Icon(Icons.check_circle, color: Colors.green)
+                    : const Icon(Icons.arrow_forward_ios, size: 16),
+
+                onTap: isSelectedAlready
+                    ? null // disabled
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                BuildComponentsScreen(category: cat["value"]),
+                          ),
+                        );
+                      },
+              ),
             ),
           );
         },
