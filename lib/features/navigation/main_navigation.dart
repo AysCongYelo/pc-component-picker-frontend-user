@@ -17,7 +17,6 @@ class MainNavigation extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final index = ref.watch(navIndexProvider);
 
-    // IMPORTANT: No more const — prevents login bypass
     final pages = [
       HomeScreen(),
       BuildTab(),
@@ -29,14 +28,16 @@ class MainNavigation extends ConsumerWidget {
       body: IndexedStack(index: index, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: index,
-        onTap: (i) => ref.read(navIndexProvider.notifier).state = i,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
+        onTap: (i) {
+          ref.read(navIndexProvider.notifier).state = i;
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.build), label: "Build"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Saves"),
+          BottomNavigationBarItem(icon: Icon(Icons.save), label: "Saves"),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),

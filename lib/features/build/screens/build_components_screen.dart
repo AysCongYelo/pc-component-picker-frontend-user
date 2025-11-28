@@ -7,8 +7,13 @@ import 'package:frontend/features/build/providers/build_provider.dart';
 
 class BuildComponentsScreen extends ConsumerWidget {
   final String category;
+  final bool isEditing; // ⭐ REQUIRED FIELD (missing sa code mo)
 
-  const BuildComponentsScreen({super.key, required this.category});
+  const BuildComponentsScreen({
+    super.key,
+    required this.category,
+    this.isEditing = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,9 +56,15 @@ class BuildComponentsScreen extends ConsumerWidget {
                         .read(buildProvider.notifier)
                         .addComponent(category, comp["id"]);
 
-                    // ⭐ Auto back to BuildTab
-                    Navigator.pop(context); // exit components screen
-                    Navigator.pop(context); // exit category screen
+                    // ⭐ FIXED: DIFFERENT BEHAVIOR DEPENDING ON EDIT OR ADD MODE
+                    if (isEditing) {
+                      // Editing → return to BuildTab only
+                      Navigator.pop(context);
+                    } else {
+                      // Adding new → close 2 layers
+                      Navigator.pop(context); // components list
+                      Navigator.pop(context); // category screen
+                    }
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("${comp["name"]} added!")),

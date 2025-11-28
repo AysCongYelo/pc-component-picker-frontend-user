@@ -5,12 +5,13 @@ final savedBuildsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
       final api = ApiClient.create();
 
-      // /builder/my returns a LIST, not an object
       final res = await api.get("/builder/my");
 
-      if (res is List) {
-        return res.map((e) => e as Map<String, dynamic>).toList();
+      if (res is Map && res["builds"] is List) {
+        return (res["builds"] as List)
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
       }
 
-      throw Exception("Invalid response format: expected List");
+      throw Exception("Invalid response format: expected { builds: [] }");
     });

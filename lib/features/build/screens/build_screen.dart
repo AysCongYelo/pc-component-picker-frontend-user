@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:frontend/core/services/api_client_provider.dart';
 import 'package:frontend/features/build/providers/build_provider.dart';
 import 'package:frontend/features/build/providers/build_state.dart';
+import 'package:frontend/features/save/screens/saved_builds_screen.dart';
 import 'build_category_screen.dart';
+import 'package:frontend/features/build/screens/build_components_screen.dart';
 
 class BuildTab extends ConsumerWidget {
   const BuildTab({super.key});
@@ -151,6 +153,14 @@ class BuildTab extends ConsumerWidget {
     dynamic comp,
     Map<String, dynamic> build,
   ) {
+    // SAFE CAST
+    final isMap = comp is Map<String, dynamic>;
+    final name = isMap
+        ? comp["name"]?.toString() ?? "Unknown Component"
+        : comp.toString();
+    final price = isMap ? (comp["price"]?.toString() ?? "0") : "0";
+    final imageUrl = isMap ? (comp["image_url"]?.toString() ?? "") : "";
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -170,7 +180,7 @@ class BuildTab extends ConsumerWidget {
           vertical: 12,
         ),
 
-        // IMAGE
+        // ---------------- IMAGE ----------------
         leading: Container(
           width: 80,
           height: 80,
@@ -179,23 +189,22 @@ class BuildTab extends ConsumerWidget {
             color: Colors.grey.shade200,
           ),
           clipBehavior: Clip.hardEdge,
-          child:
-              comp["image_url"] != null &&
-                  comp["image_url"].toString().isNotEmpty
-              ? Image.network(comp["image_url"], fit: BoxFit.cover)
+          child: (isMap && imageUrl.isNotEmpty)
+              ? Image.network(imageUrl, fit: BoxFit.cover)
               : const Icon(Icons.image, size: 24, color: Colors.grey),
         ),
 
-        // ⭐ THIS WAS MISSING
+        // ---------------- TITLE ----------------
         title: Text(
-          comp["name"] ?? "Unknown Component",
+          name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
 
+        // ---------------- SUBTITLE ----------------
         subtitle: Text(
-          "₱${comp["price"]}",
+          "₱$price",
           style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.w500,
@@ -203,7 +212,7 @@ class BuildTab extends ConsumerWidget {
           ),
         ),
 
-        // EDIT + DELETE BUTTONS
+        // ---------------- ACTION BUTTONS ----------------
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -213,9 +222,9 @@ class BuildTab extends ConsumerWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => BuildCategoryScreen(
-                      preselectedCategory: category,
-                      selectedCategories: build.keys.toSet(),
+                    builder: (_) => BuildComponentsScreen(
+                      category: category.toLowerCase(),
+                      isEditing: true,
                     ),
                   ),
                 );
@@ -360,9 +369,19 @@ class BuildTab extends ConsumerWidget {
                 final res = await ref
                     .read(apiClientProvider)
                     .post("/cart/addTempBuild", {});
+
+                // SUCCESS MESSAGE
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Added ${res['count']} to cart!")),
+                  SnackBar(
+                    content: Text("Added ${res['count']} items to cart!"),
+                  ),
                 );
+
+                // ⭐ CLEAR TEMP BUILD AFTER ADD TO CART
+                await ref.read(buildProvider.notifier).reset();
+
+                // Refresh UI
+                await ref.read(buildProvider.notifier).loadTempBuild();
               } catch (e) {
                 ScaffoldMessenger.of(
                   context,
@@ -503,17 +522,26 @@ class BuildTab extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.of(
+                context,
+                rootNavigator: true,
+              ).pop(); // close dialog only
+            },
             child: const Text("Cancel"),
           ),
           ElevatedButton(
             onPressed: () async {
               final name = controller.text.trim();
-              Navigator.pop(context);
+
+              // ❗ ONLY ONE POP — close dialog ONLY
+              Navigator.of(context, rootNavigator: true).pop();
 
               try {
                 await ref.read(buildProvider.notifier).save(name);
-                Navigator.pushNamed(context, "/saved");
+
+                // tell Saved tab to refresh
+                SavedBuildsPage.shouldRefresh = true;
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text("Build saved successfully!")),

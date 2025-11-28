@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/services/api_client.dart';
+import 'saved_build_details_page.dart';
 
 class SavedBuild {
   final String id;
   final String name;
   final double price;
+  final int powerUsage;
   final List<Map<String, dynamic>> components;
 
   SavedBuild({
     required this.id,
     required this.name,
     required this.price,
+    required this.powerUsage,
     required this.components,
   });
 }
 
 class SavedBuildsPage extends StatefulWidget {
+  static bool shouldRefresh = false; // ⭐ ADD THIS
   const SavedBuildsPage({Key? key}) : super(key: key);
 
   @override
@@ -35,49 +39,64 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
     _loadSavedBuilds();
   }
 
-  // ---------------------------------------------------------------------------
-  // FETCH SAVED BUILDS
-  // ---------------------------------------------------------------------------
   Future<void> _loadSavedBuilds() async {
     try {
+      if (!mounted) return;
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      final res = await _api.get("/builder/my");
+      final res = await _api.get("/builder/my"); // your endpoint
 
       if (res is Map && res["builds"] is List) {
-        final List<dynamic> data = res["builds"];
+        final data = res["builds"] as List;
 
-        _savedBuilds = data.map((b) {
-          final comps = <Map<String, dynamic>>[];
+        final loaded = data
+            .map((b) {
+              final comps = <Map<String, dynamic>>[];
 
-          if (b["components"] != null && b["components"] is Map) {
-            (b["components"] as Map).forEach((cat, comp) {
-              if (comp != null && comp is Map) {
-                comps.add({
-                  "category": cat,
-                  "name": comp["name"],
-                  "price": comp["price"],
+              final raw = b["preview"];
+
+              if (raw != null && raw is Map<String, dynamic>) {
+                raw.forEach((cat, comp) {
+                  if (comp is Map<String, dynamic>) {
+                    comps.add({
+                      "category": cat,
+                      "name": comp["name"] ?? "Unknown",
+                      "price": comp["price"] ?? 0,
+                    });
+                  }
                 });
               }
-            });
-          }
 
-          return SavedBuild(
-            id: b["id"],
-            name: b["name"] ?? "Unnamed Build",
-            price: double.tryParse(b["total_price"].toString()) ?? 0.0,
-            components: comps,
-          );
-        }).toList();
+              return SavedBuild(
+                id: b["id"]?.toString() ?? "",
+                name: b["name"] ?? "Unnamed Build",
+                price:
+                    double.tryParse((b["total_price"] ?? 0).toString()) ?? 0.0,
+                powerUsage:
+                    int.tryParse((b["power_usage"] ?? 0).toString()) ?? 0,
+                components: comps,
+              );
+            })
+            .where((s) => s.id.isNotEmpty)
+            .toList();
+
+        if (!mounted) return;
+        setState(() {
+          _savedBuilds = loaded;
+          _isLoading = false;
+        });
       } else {
-        throw Exception("Unexpected API response structure");
+        if (!mounted) return;
+        setState(() {
+          _savedBuilds = [];
+          _isLoading = false;
+        });
       }
-
-      setState(() => _isLoading = false);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _isLoading = false;
@@ -85,254 +104,177 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // DELETE BUILD
-  // ---------------------------------------------------------------------------
+  /// DELETE (or mark removed) on backend + update UI
   Future<void> _deleteBuild(String buildId) async {
-    try {
-      await _api.delete("/builds/$buildId");
+    // optimistic UI: show spinner for this card? simple approach: disable whole screen
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
 
+    try {
+      // call backend to remove (DELETE /builder/my/:id). use deleteUserBuild or removeFromSaved semantics.
+      await _api.delete("/builder/my/$buildId");
+
+      if (!mounted) return;
       setState(() {
         _savedBuilds.removeWhere((b) => b.id == buildId);
+        _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Build deleted"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to delete: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // CHECKOUT WITH METHOD
-  // ---------------------------------------------------------------------------
-  Future<void> _checkoutBuild(
-    SavedBuild build, {
-    required String method,
-  }) async {
-    try {
-      final res = await _api.post("/checkout/build/${build.id}", {
-        "payment_method": method,
-      });
-
-      final orderId = res["order"]["id"];
-
-      Navigator.pushNamed(
+      ScaffoldMessenger.of(
         context,
-        "/order-success",
-        arguments: {"orderId": orderId},
-      );
+      ).showSnackBar(const SnackBar(content: Text("Removed from Saved list")));
     } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Checkout failed: $e"),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Failed to remove saved build: $e")),
       );
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // PAYMENT METHOD POPUP
-  // ---------------------------------------------------------------------------
-  void _showPaymentMethodSheet(SavedBuild build) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Select Payment Method",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-
-              const SizedBox(height: 20),
-
-              // COD BUTTON
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _checkoutBuild(build, method: "cod");
-                  },
-                  child: const Text(
-                    "Cash on Delivery (COD)",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel"),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // FORMAT PRICE
-  // ---------------------------------------------------------------------------
   String formatPrice(double price) {
     return price
         .toStringAsFixed(0)
         .replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]},',
+          (m) => "${m[1]},",
         );
   }
 
-  // ---------------------------------------------------------------------------
-  // UI - EMPTY STATE
-  // ---------------------------------------------------------------------------
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.bookmark_border, size: 80, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              "No Saved Builds",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.bookmark_border, size: 80, color: Colors.grey),
+          SizedBox(height: 16),
+          Text("No Saved Builds", style: TextStyle(fontSize: 22)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBuildCard(SavedBuild build) {
+    return GestureDetector(
+      onTap: () async {
+        // open details WITHOUT hiding bottom nav
+        final result = await Navigator.of(context).push<bool>(
+          PageRouteBuilder(
+            opaque: false,
+            barrierColor: Colors.black.withOpacity(0.05),
+            pageBuilder: (_, __, ___) =>
+                SavedBuildDetailsPage(savedBuild: build),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+
+        // only reload if details returned true (means they modified/removed the build)
+        if (result == true) {
+          await _loadSavedBuilds();
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
-            SizedBox(height: 8),
-            Text("Save builds to see them here"),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Build Name + Price
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  build.name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "₱${formatPrice(build.price)}",
+                  style: const TextStyle(
+                    fontSize: 18,
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+
+            // Delete button
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => _confirmAndDelete(build.id),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // BUILD CARD
-  // ---------------------------------------------------------------------------
-  Widget _buildBuildCard(SavedBuild build) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Future<void> _confirmAndDelete(String buildId) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove saved build?'),
+        content: const Text('This will remove the build from your Saved list.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
-        ],
-      ),
-
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title + Price
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                build.name,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                "₱${formatPrice(build.price)}",
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Component preview
-          ...build.components.map(
-            (c) => Text(
-              "• ${c["category"].toUpperCase()}: ${c["name"]}",
-              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Delete + Checkout
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => _deleteBuild(build.id),
-                  child: const Text("Delete"),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                  ),
-                  onPressed: () => _showPaymentMethodSheet(build),
-                  child: const Text("Checkout"),
-                ),
-              ),
-            ],
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
           ),
         ],
       ),
     );
+
+    if (ok == true) {
+      await _deleteBuild(buildId);
+    }
   }
 
-  // ---------------------------------------------------------------------------
-  // MAIN UI
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-
-    if (_error != null) {
-      return Center(child: Text("Error: $_error"));
+    // AUTO-REFRESH WHEN COMING FROM OTHER FLOW
+    if (SavedBuildsPage.shouldRefresh) {
+      SavedBuildsPage.shouldRefresh = false;
+      _loadSavedBuilds();
     }
 
-    if (_savedBuilds.isEmpty) return _buildEmptyState();
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: _savedBuilds.map(_buildBuildCard).toList(),
+    return Scaffold(
+      appBar: AppBar(title: const Text("Saved Builds")),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(child: Text(_error!))
+          : _savedBuilds.isEmpty
+          ? _buildEmptyState()
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: _savedBuilds.map(_buildBuildCard).toList(),
+            ),
     );
   }
 }

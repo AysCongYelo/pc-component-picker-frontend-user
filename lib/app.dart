@@ -1,12 +1,11 @@
-// frontend/lib/app.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/features/home/screens/search_screen.dart';
 
-// ADD THIS
+// HOME + ARTICLES
+import 'package:frontend/features/home/screens/search_screen.dart';
 import 'features/home/screens/article_detail_screen.dart';
 
+// SAVED + ORDERS
 import 'features/save/screens/saved_builds_screen.dart';
 import 'features/orders/orders_list_screen.dart';
 
@@ -19,15 +18,15 @@ import 'features/auth/screens/intro_screen.dart';
 // NAVIGATION
 import 'features/navigation/main_navigation.dart';
 
-// PROFILE
+// PROFILE + SUCCESS
 import 'features/profile/screens/edit_profile_screen.dart';
 import 'features/orders/order_success_screen.dart';
 
-// HOME / FEATURED / AUTOBUILD
+// FEATURED + AUTOBUILD
 import 'features/home/screens/featured_build_detail_screen.dart';
 import 'features/home/screens/autobuild_result_screen.dart';
 
-// BUILD FLOW B (NEW)
+// BUILD
 import 'features/build/screens/build_category_screen.dart';
 import 'features/build/screens/build_components_screen.dart';
 
@@ -51,7 +50,7 @@ class MyApp extends ConsumerWidget {
       ),
 
       routes: {
-        // AUTH & NAV
+        // AUTH
         LoginScreen.routeName: (_) => const LoginScreen(),
         MainNavigation.routeName: (_) => const MainNavigation(),
         IntroScreen.routeName: (_) => const IntroScreen(),
@@ -61,33 +60,39 @@ class MyApp extends ConsumerWidget {
         FeaturedBuildDetailScreen.routeName: (_) =>
             const FeaturedBuildDetailScreen(),
 
-        // AUTOBUILD
+        // AUTOBUILD (SAFE VERSION)
         AutoBuildResultScreen.routeName: (ctx) {
-          final result =
-              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
-          return AutoBuildResultScreen(result: result);
+          final args =
+              ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
+
+          return AutoBuildResultScreen(
+            result: args ?? {"components": [], "totalPrice": 0},
+          );
         },
 
-        // ORDERS
+        // ORDER SUCCESS
         "/order-success": (ctx) {
           final args =
-              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
-          return OrderSuccessScreen(orderId: args["orderId"]);
+              ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
+
+          return OrderSuccessScreen(orderId: args?["orderId"] ?? "UNKNOWN");
         },
+
         "/my-orders": (_) => const OrdersListScreen(),
 
-        // SAVED, SEARCH
+        // SAVED + SEARCH
         "/saved": (_) => const SavedBuildsPage(),
         "/search": (_) => const SearchScreen(),
 
-        // ⭐ ADD THE ARTICLE ROUTE
+        // ARTICLE (SAFE VERSION)
         ArticleDetailScreen.routeName: (ctx) {
           final args =
-              ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
+              ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
+
           return ArticleDetailScreen(
-            title: args["title"],
-            image: args["image"],
-            content: args["content"],
+            title: args?["title"] ?? "No Title",
+            image: args?["image"] ?? "",
+            content: args?["content"] ?? "No content available",
           );
         },
       },

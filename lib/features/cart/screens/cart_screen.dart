@@ -36,7 +36,12 @@ class _CartScreenState extends State<CartScreen> {
 
       setState(() {
         _items = items;
-        _selectedItems.clear(); // reset selection
+
+        // ✔ Keep only selections that still exist in cart
+        _selectedItems = _selectedItems.where((id) {
+          return _items.any((item) => item["id"].toString() == id);
+        }).toSet();
+
         _loading = false;
       });
     } catch (e) {
@@ -79,25 +84,26 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   void _showCheckoutDialog() {
-    final parentContext = context; // <-- ADD THIS
+    final parentContext = context;
 
     final selected = _items
-        .where((item) => _selectedItems.contains(item["id"]))
+        .where((item) => _selectedItems.contains(item["id"].toString()))
         .toList();
 
     showModalBottomSheet(
-      context: context,
+      context: parentContext,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) {
+      builder: (modalContext) {
+        // ⭐ IMPORTANT
         return DraggableScrollableSheet(
           initialChildSize: 0.75,
           maxChildSize: 0.9,
           minChildSize: 0.5,
           expand: false,
-          builder: (context, scrollController) {
+          builder: (_, scrollController) {
             return Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -122,7 +128,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ---------------- ITEMS LIST ----------------
                   Expanded(
                     child: ListView.builder(
                       controller: scrollController,
@@ -131,12 +136,14 @@ class _CartScreenState extends State<CartScreen> {
                         final item = selected[i];
                         final name = _itemDisplayName(item);
                         final price = _itemDisplayPrice(item);
-                        final qty = item["quantity"] ?? 1;
 
                         return ListTile(
-                          contentPadding: EdgeInsets.zero,
                           title: Text(name),
-                          subtitle: Text("Qty: $qty"),
+                          subtitle: item["category"] == "build_bundle"
+                              ? Text(
+                                  "${item["bundle_item_count"]} items in bundle",
+                                )
+                              : Text("Qty: ${item["quantity"] ?? 1}"),
                           trailing: Text(
                             "₱$price",
                             style: const TextStyle(
@@ -152,7 +159,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 10),
 
-                  // ---------------- TOTAL SUMMARY ----------------
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -180,7 +186,6 @@ class _CartScreenState extends State<CartScreen> {
 
                   const SizedBox(height: 16),
 
-                  // ---------------- CONFIRM BUTTON ----------------
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -192,7 +197,9 @@ class _CartScreenState extends State<CartScreen> {
                         ),
                       ),
                       onPressed: () async {
-                        Navigator.pop(context);
+                        Navigator.pop(
+                          modalContext,
+                        ); // ⭐ ALWAYS USE modalContext
 
                         try {
                           final res = await _api.post("/checkout", {
@@ -201,20 +208,21 @@ class _CartScreenState extends State<CartScreen> {
                             "notes": null,
                           });
 
-                          final orderId = res["order"]["id"];
+                          await Future.delayed(
+                            const Duration(milliseconds: 50),
+                          );
 
-                          if (!mounted) return;
+                          if (!parentContext.mounted) return;
 
                           Navigator.pushReplacementNamed(
-                            parentContext, // ✔ SAFE
+                            parentContext,
                             "/order-success",
-                            arguments: {"orderId": orderId},
+                            arguments: {"orderId": res["order"]["id"]},
                           );
                         } catch (e) {
-                          if (!mounted) return;
+                          if (!parentContext.mounted) return;
 
                           ScaffoldMessenger.of(parentContext).showSnackBar(
-                            // ✔ SAFE
                             SnackBar(
                               content: Text("Checkout failed: $e"),
                               backgroundColor: Colors.red,
@@ -222,7 +230,6 @@ class _CartScreenState extends State<CartScreen> {
                           );
                         }
                       },
-
                       child: const Text(
                         "Confirm Order",
                         style: TextStyle(
@@ -303,18 +310,26 @@ class _CartScreenState extends State<CartScreen> {
 
   // ---------------- SELECTED TOTAL ----------------
   double get selectedTotal {
-    return _items.where((item) => _selectedItems.contains(item["id"])).fold(0, (
-      sum,
-      item,
-    ) {
-      if (item["component_price"] != null) {
-        return sum + double.tryParse(item["component_price"].toString())!;
-      }
-      if (item["build_total_price"] != null) {
-        return sum + double.tryParse(item["build_total_price"].toString())!;
-      }
-      return sum + (double.tryParse(item["price"].toString()) ?? 0);
-    });
+    return _items
+        .where((item) => _selectedItems.contains(item["id"].toString()))
+        .fold(0, (sum, item) {
+          final qty = item["quantity"] ?? 1;
+
+          if (item["component_price"] != null) {
+            final price =
+                double.tryParse(item["component_price"].toString()) ?? 0;
+            return sum + (price * qty);
+          }
+
+          if (item["build_total_price"] != null) {
+            final price =
+                double.tryParse(item["build_total_price"].toString()) ?? 0;
+            return sum + (price * qty);
+          }
+
+          final price = double.tryParse(item["price"].toString()) ?? 0;
+          return sum + (price * qty);
+        });
   }
 
   // ---------------- CATEGORY ICON ----------------
@@ -400,33 +415,33 @@ class _CartScreenState extends State<CartScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  ..._items.map(_cartItemTile),
+                  ..._items.map(_cartItemTile).toList(),
                   const SizedBox(height: 20),
 
-                  _buildTotalCard(),
-                  const SizedBox(height: 20),
+                  if (_selectedItems.isNotEmpty) ...[
+                    _buildTotalCard(selectedTotal),
 
-                  // ---------------- CHECKOUT BUTTON ----------------
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.payment),
-                    label: Text(
-                      "Checkout (${_selectedItems.length})",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 20),
+
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.payment),
+                      label: Text(
+                        "Checkout (${_selectedItems.length})",
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      onPressed: _showCheckoutDialog,
                     ),
-                    onPressed: _selectedItems.isEmpty
-                        ? null
-                        : _showCheckoutDialog,
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -460,13 +475,14 @@ class _CartScreenState extends State<CartScreen> {
         children: [
           // ---------------- CHECKBOX ----------------
           Checkbox(
-            value: _selectedItems.contains(item["id"]),
+            value: _selectedItems.contains(item["id"].toString()),
             onChanged: (value) {
               setState(() {
+                final id = item["id"].toString();
                 if (value == true) {
-                  _selectedItems.add(item["id"]);
+                  _selectedItems.add(id);
                 } else {
-                  _selectedItems.remove(item["id"]);
+                  _selectedItems.remove(id);
                 }
               });
             },
@@ -519,22 +535,50 @@ class _CartScreenState extends State<CartScreen> {
           if (category != "build_bundle" && category != "temp_build") ...[
             Row(
               children: [
+                // ---------- MINUS ----------
                 IconButton(
                   icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => _removeItem(item["id"]),
+                  onPressed: () async {
+                    final currentQty = item["quantity"] ?? 1;
+
+                    if (currentQty > 1) {
+                      // MINUS ONE (backend: DELETE /cart/:itemId)
+                      await _api.delete("/cart/${item['id']}");
+
+                      setState(() {
+                        item["quantity"] =
+                            currentQty - 1; // 👈 smooth UI update
+                      });
+                    } else {
+                      // Quantity becomes 0 → delete entire row
+                      await _api.delete("/cart/deleteRow/${item["id"]}");
+
+                      setState(() {
+                        _items.remove(item);
+                        _selectedItems.remove(item["id"].toString());
+                      });
+                    }
+                  },
                 ),
+
+                // ---------- QTY NUMBER ----------
                 Text(
-                  "$quantity",
+                  "${item["quantity"] ?? 1}",
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
                     fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+
+                // ---------- PLUS ----------
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () async {
                     await _api.post("/cart/add", {"componentId": componentId});
-                    _loadCart();
+
+                    setState(() {
+                      item["quantity"] = (item["quantity"] ?? 1) + 1;
+                    });
                   },
                 ),
               ],
@@ -575,7 +619,8 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // ---------------- TOTAL CARD ----------------
-  Widget _buildTotalCard() {
+  // now accepts amount to display (selected total)
+  Widget _buildTotalCard(double amount) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -598,7 +643,7 @@ class _CartScreenState extends State<CartScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            "₱${totalPrice.toStringAsFixed(2)}",
+            "₱${amount.toStringAsFixed(2)}",
             style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
