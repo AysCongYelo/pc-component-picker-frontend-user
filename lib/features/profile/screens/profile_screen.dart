@@ -39,13 +39,6 @@ class ProfileScreen extends ConsumerWidget {
                 },
               ),
 
-              _menu(
-                icon: Icons.bookmark,
-                title: "Saved Builds",
-                subtitle: "Your custom PC configurations",
-                onTap: () {},
-              ),
-
               const SizedBox(height: 32),
 
               _buildLogoutButton(context, ref),

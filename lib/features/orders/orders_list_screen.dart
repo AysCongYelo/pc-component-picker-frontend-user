@@ -85,65 +85,86 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
     final status = order["status"];
     final date = order["created_at"];
 
-    return InkWell(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          "/order-detail",
-          arguments: {"orderId": orderId},
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        onTap: () {
+          Navigator.pushNamed(
+            context,
+            "/order-detail",
+            arguments: {"orderId": orderId},
+          );
+        },
+        title: Text(
+          "Order #${orderId.substring(0, 8)}",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF1E293B),
+          ),
         ),
-        child: Column(
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Order ID
-            Text(
-              "Order #${orderId.substring(0, 8)}",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Status + Date
+            const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _statusBadge(status),
                 Text(
                   date.toString().substring(0, 10),
-                  style: TextStyle(color: Colors.grey[600]),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            // Total
+            const SizedBox(height: 8),
             Text(
               "₱${total.toString()}",
               style: const TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2563EB),
               ),
             ),
           ],
         ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: Color(0xFF64748B),
+        ),
       ),
+    );
+  }
+
+  // ---------------- SECTION HEADER ----------------
+  Widget _section(String title) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      ],
     );
   }
 
@@ -151,27 +172,54 @@ class _OrdersListScreenState extends State<OrdersListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("My Orders"),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        title: const Text(
+          "My Orders",
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF2196F3),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(child: Text("Error: $_error"))
+          ? Center(
+              child: Text(
+                "Error: $_error",
+                style: const TextStyle(color: Colors.red),
+              ),
+            )
           : _orders.isEmpty
           ? const Center(
               child: Text(
                 "You have no orders yet.",
-                style: TextStyle(fontSize: 16),
+                style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
               ),
             )
-          : RefreshIndicator(
-              onRefresh: _loadOrders,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: _orders.map(_orderCard).toList(),
+          : SafeArea(
+              child: RefreshIndicator(
+                onRefresh: _loadOrders,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _section("My Orders"),
+                      const SizedBox(height: 12),
+                      ..._orders.map(_orderCard).toList(),
+                    ],
+                  ),
+                ),
               ),
             ),
     );

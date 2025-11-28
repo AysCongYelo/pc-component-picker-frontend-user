@@ -19,7 +19,8 @@ class SavedBuild {
 }
 
 class SavedBuildsPage extends StatefulWidget {
-  static bool shouldRefresh = false; // ⭐ ADD THIS
+  static bool shouldRefresh = false;
+
   const SavedBuildsPage({Key? key}) : super(key: key);
 
   @override
@@ -42,12 +43,13 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
   Future<void> _loadSavedBuilds() async {
     try {
       if (!mounted) return;
+
       setState(() {
         _isLoading = true;
         _error = null;
       });
 
-      final res = await _api.get("/builder/my"); // your endpoint
+      final res = await _api.get("/builder/my");
 
       if (res is Map && res["builds"] is List) {
         final data = res["builds"] as List;
@@ -57,7 +59,6 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
               final comps = <Map<String, dynamic>>[];
 
               final raw = b["preview"];
-
               if (raw != null && raw is Map<String, dynamic>) {
                 raw.forEach((cat, comp) {
                   if (comp is Map<String, dynamic>) {
@@ -104,19 +105,18 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
     }
   }
 
-  /// DELETE (or mark removed) on backend + update UI
   Future<void> _deleteBuild(String buildId) async {
-    // optimistic UI: show spinner for this card? simple approach: disable whole screen
     if (!mounted) return;
+
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // call backend to remove (DELETE /builder/my/:id). use deleteUserBuild or removeFromSaved semantics.
       await _api.delete("/builder/my/$buildId");
 
       if (!mounted) return;
+
       setState(() {
         _savedBuilds.removeWhere((b) => b.id == buildId);
         _isLoading = false;
@@ -127,6 +127,7 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
       ).showSnackBar(const SnackBar(content: Text("Removed from Saved list")));
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _isLoading = false;
       });
@@ -146,83 +147,101 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
         );
   }
 
+  // ------------------------------
+  // EMPTY STATE UI
+  // ------------------------------
   Widget _buildEmptyState() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.bookmark_border, size: 80, color: Colors.grey),
-          SizedBox(height: 16),
-          Text("No Saved Builds", style: TextStyle(fontSize: 22)),
+          Icon(Icons.computer_rounded, size: 90, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text(
+            "No Saved Builds",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Your saved PC builds will appear here.",
+            style: TextStyle(color: Color(0xFF94A3B8)),
+          ),
         ],
       ),
     );
   }
 
+  // ------------------------------
+  // BUILD CARD UI (FUNCTION-SAFE)
+  // ------------------------------
   Widget _buildBuildCard(SavedBuild build) {
     return GestureDetector(
       onTap: () async {
-        // open details WITHOUT hiding bottom nav
         final result = await Navigator.of(context).push<bool>(
-          PageRouteBuilder(
-            opaque: false,
-            barrierColor: Colors.black.withOpacity(0.05),
-            pageBuilder: (_, __, ___) =>
-                SavedBuildDetailsPage(savedBuild: build),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+          MaterialPageRoute(
+            builder: (_) => SavedBuildDetailsPage(savedBuild: build),
           ),
         );
 
-        // only reload if details returned true (means they modified/removed the build)
         if (result == true) {
           await _loadSavedBuilds();
         }
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Build Name + Price
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  build.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            // LEFT SIDE INFO
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    build.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "₱${formatPrice(build.price)}",
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.blue,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(height: 6),
+                  Text(
+                    "₱${formatPrice(build.price)}",
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2563EB),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
-            // Delete button
+            // DELETE BUTTON
             IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
+              icon: const Icon(
+                Icons.delete_rounded,
+                color: Color(0xFFF43F5E),
+                size: 26,
+              ),
               onPressed: () => _confirmAndDelete(build.id),
             ),
           ],
@@ -231,40 +250,75 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
     );
   }
 
+  // ------------------------------
+  // CONFIRM DELETE
+  // ------------------------------
   Future<void> _confirmAndDelete(String buildId) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Remove saved build?'),
-        content: const Text('This will remove the build from your Saved list.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Remove saved build?',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        content: const Text(
+          'This will remove the build from your Saved list.',
+          style: TextStyle(color: Color(0xFF64748B)),
+        ),
         actions: [
           TextButton(
+            child: const Text("Cancel"),
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF43F5E),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Remove"),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove'),
           ),
         ],
       ),
     );
 
-    if (ok == true) {
-      await _deleteBuild(buildId);
-    }
+    if (ok == true) _deleteBuild(buildId);
   }
 
+  // ------------------------------
+  // MAIN BUILD
+  // ------------------------------
   @override
   Widget build(BuildContext context) {
-    // AUTO-REFRESH WHEN COMING FROM OTHER FLOW
     if (SavedBuildsPage.shouldRefresh) {
       SavedBuildsPage.shouldRefresh = false;
       _loadSavedBuilds();
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Saved Builds")),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          "Saved Builds",
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

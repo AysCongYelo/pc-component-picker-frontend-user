@@ -25,7 +25,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-
     final user = ref.read(authProvider).user;
     if (user != null) {
       _nameController.text = user["full_name"] ?? "";
@@ -58,15 +57,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final notifier = ref.read(authProvider.notifier);
 
     try {
-      // update name
       await service.updateProfile(_nameController.text.trim());
 
-      // update avatar
       if (_newAvatar != null) {
         await service.updateAvatar(_newAvatar!);
       }
 
-      // refresh authProvider's user data
       await notifier.refreshUserProfile();
 
       Navigator.pop(context);
@@ -92,85 +88,46 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final user = auth.user;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Edit Profile")),
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        title: const Text(
+          "Edit Profile",
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
       body: user == null
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Form(
-                key: _formKey,
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   children: [
-                    // Avatar
-                    Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundImage: _newAvatar != null
-                              ? FileImage(_newAvatar!)
-                              : (user["avatar_url"] != null
-                                    ? NetworkImage(user["avatar_url"])
-                                    : const AssetImage("assets/user.png")),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: CircleAvatar(
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                              ),
-                              onPressed: () => _chooseSource(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 35),
-
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: "Full Name",
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        prefixIcon: const Icon(Icons.person),
-                      ),
-                      validator: (v) => v == null || v.trim().isEmpty
-                          ? "Name required"
-                          : null,
-                    ),
-
+                    // Avatar section styled like the header card
+                    _avatarCard(context, user),
                     const SizedBox(height: 24),
 
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _save,
-                        child: const Text(
-                          "Save Changes",
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-
+                    // Section header
+                    _section("Profile Details"),
                     const SizedBox(height: 12),
 
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Cancel"),
-                      ),
-                    ),
+                    // Form in a menu-like container
+                    _formContainer(),
+
+                    const SizedBox(height: 32),
+
+                    // Buttons
+                    _buildSaveButton(),
+                    const SizedBox(height: 12),
+                    _buildCancelButton(),
                   ],
                 ),
               ),
@@ -178,26 +135,229 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
   }
 
+  // Avatar card similar to ProfileScreen's header
+  Widget _avatarCard(BuildContext context, Map<String, dynamic>? user) {
+    final mainBlue = const Color(0xFF2563EB);
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: mainBlue.withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.white,
+                backgroundImage: _newAvatar != null
+                    ? FileImage(_newAvatar!)
+                    : (user?['avatar_url'] != null
+                              ? NetworkImage(user!['avatar_url'])
+                              : const AssetImage('assets/user.png'))
+                          as ImageProvider,
+              ),
+              Positioned(
+                bottom: 4,
+                right: 4,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.camera_alt, color: mainBlue, size: 22),
+                    onPressed: _chooseSource,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            user?['full_name'] ?? "Unknown User",
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            user?['email'] ?? "",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Section header like ProfileScreen
+  Widget _section(String title) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Form container styled like menu items
+  Widget _formContainer() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: "Full Name",
+                prefixIcon: const Icon(Icons.person, color: Color(0xFF2563EB)),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? "Name required" : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Save button styled like ProfileScreen buttons
+  Widget _buildSaveButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _save,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2563EB),
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Text(
+          "Save Changes",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
+
+  // Cancel button styled as outlined
+  Widget _buildCancelButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: () => Navigator.pop(context),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: const Text(
+          "Cancel",
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF64748B),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Image source dialog
   void _chooseSource() {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Change avatar"),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.camera_alt, color: Color(0xFF2563EB), size: 28),
+            SizedBox(width: 12),
+            Text(
+              "Change Avatar",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+        content: const Text(
+          "Choose where to pick your new profile picture.",
+          style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+        ),
         actions: [
           TextButton(
-            child: const Text("Camera"),
             onPressed: () {
               Navigator.pop(context);
               _pick(ImageSource.camera);
             },
+            child: const Text(
+              "Camera",
+              style: TextStyle(color: Color(0xFF2563EB)),
+            ),
           ),
           TextButton(
-            child: const Text("Gallery"),
             onPressed: () {
               Navigator.pop(context);
               _pick(ImageSource.gallery);
             },
+            child: const Text(
+              "Gallery",
+              style: TextStyle(color: Color(0xFF2563EB)),
+            ),
           ),
         ],
       ),
