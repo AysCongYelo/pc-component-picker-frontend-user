@@ -5,5 +5,6 @@ class Env {
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0ZHJnb2psdmdiaXdxd2N1Y2JpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1NTE1OTgsImV4cCI6MjA3NzEyNzU5OH0.ch6vg7HjSTTDx9t1qDBb8hTBmWVzFupOo7gXTSdKSGQ";
 
   // Railway backend (for app data)
-  static const backendUrl = "http://10.0.2.2:5000/api";
+  static const backendUrl =
+      "https://pc-component-picker-backend-production.up.railway.app/api";
 }

@@ -33,11 +33,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final supabase = Supabase.instance.client;
 
   // ------------------------------------------------------------------
-  // INIT
+  // INIT (fixed)
   // ------------------------------------------------------------------
   Future<void> _init() async {
-    await Future.delayed(const Duration(milliseconds: 120));
-
     final session = supabase.auth.currentSession;
 
     if (session != null) {
@@ -51,7 +49,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isAuthenticated: false, isLoading: false);
     }
 
-    // AUTH STATE LISTENER
+    // AUTH STATE LISTENER (SAFE)
     supabase.auth.onAuthStateChange.listen((event) async {
       final session = event.session;
 
@@ -66,26 +64,73 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ------------------------------------------------------------------
-  // LOAD USER PROFILE
-  // ------------------------------------------------------------------
   Future<Map<String, dynamic>?> _loadProfile(String uid) async {
     return await supabase.from("profiles").select().eq("id", uid).maybeSingle();
   }
 
-  // ------------------------------------------------------------------
-  // 🔵 REFRESH USER PROFILE — for profile updates
   // ------------------------------------------------------------------
   Future<void> refreshUserProfile() async {
     final session = supabase.auth.currentSession;
     if (session == null) return;
 
     final profile = await _loadProfile(session.user.id);
-
     state = state.copyWith(isAuthenticated: true, user: profile);
   }
 
   // ------------------------------------------------------------------
-  // LOGIN
+  Future<bool> signup({
+    required String email,
+    required String password,
+    required String fullName,
+  }) async {
+    try {
+      state = state.copyWith(isLoading: true);
+
+      final res = await supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {"full_name": fullName},
+      );
+
+      if (res.user == null) {
+        state = state.copyWith(isLoading: false);
+        return false;
+      }
+
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final profile = await _loadProfile(res.user!.id);
+
+      state = state.copyWith(
+        isAuthenticated: true,
+        isLoading: false,
+        user: profile,
+      );
+
+      return true;
+    } catch (e) {
+      print("SIGNUP ERROR: $e");
+      state = state.copyWith(isLoading: false);
+      return false;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  Future<bool> forgotPassword(String email) async {
+    try {
+      state = state.copyWith(isLoading: true);
+
+      await supabase.auth.resetPasswordForEmail(email);
+
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      print("FORGOT ERROR: $e");
+      state = state.copyWith(isLoading: false);
+      return false;
+    }
+  }
+
   // ------------------------------------------------------------------
   Future<bool> login({required String email, required String password}) async {
     try {
@@ -116,8 +161,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // ------------------------------------------------------------------
-  // LOGOUT
   // ------------------------------------------------------------------
   Future<void> logout() async {
     await supabase.auth.signOut();

@@ -1,32 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// HOME + ARTICLES
-import 'package:frontend/features/home/screens/search_screen.dart';
-import 'features/home/screens/article_detail_screen.dart';
-
-// SAVED + ORDERS
-import 'features/save/screens/saved_builds_screen.dart';
-import 'features/orders/orders_list_screen.dart';
-
 // AUTH
 import 'features/auth/providers/auth_provider.dart';
+import 'features/auth/providers/intro_provider.dart';
 import 'features/auth/screens/login_screen.dart';
-import 'features/auth/screens/splash_screen.dart';
+import 'features/auth/screens/signup_screen.dart';
+import 'features/auth/screens/forgot_password_screen.dart';
 import 'features/auth/screens/intro_screen.dart';
+import 'features/auth/screens/splash_screen.dart';
 
 // NAVIGATION
 import 'features/navigation/main_navigation.dart';
 
-// PROFILE + SUCCESS
-import 'features/profile/screens/edit_profile_screen.dart';
-import 'features/orders/order_success_screen.dart';
-
-// FEATURED + AUTOBUILD
+// FEATURED + ARTICLES
+import 'features/home/screens/search_screen.dart';
+import 'features/home/screens/article_detail_screen.dart';
 import 'features/home/screens/featured_build_detail_screen.dart';
 import 'features/home/screens/autobuild_result_screen.dart';
 
-// BUILD
+// SAVED + ORDERS
+import 'features/save/screens/saved_builds_screen.dart';
+import 'features/orders/orders_list_screen.dart';
+import 'features/orders/order_success_screen.dart';
+
+// PROFILE + BUILD
+import 'features/profile/screens/edit_profile_screen.dart';
 import 'features/build/screens/build_category_screen.dart';
 import 'features/build/screens/build_components_screen.dart';
 
@@ -36,6 +35,7 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authProvider);
+    final intro = ref.watch(introProvider);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -43,8 +43,27 @@ class MyApp extends ConsumerWidget {
 
       home: Builder(
         builder: (_) {
+          // -----------------------------------------
+          // 🚀 1) STILL CHECKING INTRO FLAG?
+          // -----------------------------------------
+          if (intro.isLoading) return const SplashScreen();
+
+          // -----------------------------------------
+          // 🚀 2) NOT SEEN INTRO → SHOW ONBOARDING
+          // -----------------------------------------
+          if (intro.value == false) {
+            return const IntroScreen();
+          }
+
+          // -----------------------------------------
+          // 🚀 3) CHECK AUTH AFTER INTRO
+          // -----------------------------------------
           if (auth.isLoading) return const SplashScreen();
-          if (auth.isAuthenticated) return const MainNavigation();
+
+          if (auth.isAuthenticated) {
+            return const MainNavigation();
+          }
+
           return const LoginScreen();
         },
       ),
@@ -52,6 +71,9 @@ class MyApp extends ConsumerWidget {
       routes: {
         // AUTH
         LoginScreen.routeName: (_) => const LoginScreen(),
+        SignupScreen.routeName: (_) => const SignupScreen(),
+        "/forgot-password": (_) => const ForgotPasswordScreen(),
+
         MainNavigation.routeName: (_) => const MainNavigation(),
         IntroScreen.routeName: (_) => const IntroScreen(),
         EditProfileScreen.routeName: (_) => const EditProfileScreen(),
@@ -60,11 +82,9 @@ class MyApp extends ConsumerWidget {
         FeaturedBuildDetailScreen.routeName: (_) =>
             const FeaturedBuildDetailScreen(),
 
-        // AUTOBUILD (SAFE VERSION)
         AutoBuildResultScreen.routeName: (ctx) {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
-
           return AutoBuildResultScreen(
             result: args ?? {"components": [], "totalPrice": 0},
           );
@@ -74,21 +94,17 @@ class MyApp extends ConsumerWidget {
         "/order-success": (ctx) {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
-
           return OrderSuccessScreen(orderId: args?["orderId"] ?? "UNKNOWN");
         },
 
+        // OTHER SCREENS
         "/my-orders": (_) => const OrdersListScreen(),
-
-        // SAVED + SEARCH
         "/saved": (_) => const SavedBuildsPage(),
         "/search": (_) => const SearchScreen(),
 
-        // ARTICLE (SAFE VERSION)
         ArticleDetailScreen.routeName: (ctx) {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;
-
           return ArticleDetailScreen(
             title: args?["title"] ?? "No Title",
             image: args?["image"] ?? "",
