@@ -7,11 +7,43 @@ import 'package:frontend/features/save/screens/saved_builds_screen.dart';
 import 'build_category_screen.dart';
 import 'package:frontend/features/build/screens/build_components_screen.dart';
 
-class BuildTab extends ConsumerWidget {
+class BuildTab extends ConsumerStatefulWidget {
   const BuildTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BuildTab> createState() => _BuildTabState();
+}
+
+class _BuildTabState extends ConsumerState<BuildTab> {
+  // ---------------- SHARED COLORS (same vibes as Cart) ----------------
+  Color get _primaryBlue => const Color(0xFF2563EB);
+  Color get _softGreyBg => const Color(0xFFF3F4F6);
+  Color get _softGreen => const Color(0xFF22C55E);
+  Color get _textDark => const Color(0xFF111827);
+
+  // control kung lalabas yung Add Component + Auto Build row
+  bool _showAddAutoButtons = true;
+
+  // ---------------- PRICE FORMATTER ----------------
+  String _formatCurrency(num value) {
+    final s = value.toStringAsFixed(2);
+    final parts = s.split('.');
+    final intPart = parts[0];
+    final decPart = parts[1];
+
+    final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+    final formattedInt = intPart.replaceAllMapped(reg, (m) => '${m[1]},');
+
+    return '₱$formattedInt.$decPart';
+  }
+
+  String _formatCurrencyFromRaw(dynamic raw) {
+    final v = double.tryParse(raw?.toString() ?? '') ?? 0;
+    return _formatCurrency(v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final asyncState = ref.watch(buildProvider);
 
     return asyncState.when(
@@ -26,16 +58,27 @@ class BuildTab extends ConsumerWidget {
   // ERROR VIEW
   // --------------------------------------------------------------
   Widget _errorView(BuildContext context, WidgetRef ref, String error) {
-    // ← FIXED: Changed name from _content to _errorView
     return Scaffold(
+      backgroundColor: _softGreyBg,
       appBar: AppBar(
-        title: const Text("Build Workspace"),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: _primaryBlue,
         elevation: 2,
+        centerTitle: true,
+        automaticallyImplyLeading: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          "Build Workspace",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               ref.read(buildProvider.notifier).reset();
+              setState(() => _showAddAutoButtons = true);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Build has been reset")),
               );
@@ -53,18 +96,26 @@ class BuildTab extends ConsumerWidget {
         ],
       ),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 60),
-            const SizedBox(height: 12),
-            Text(error),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: () => ref.read(buildProvider.notifier).loadTempBuild(),
-              child: const Text("Retry"),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 60),
+              const SizedBox(height: 12),
+              Text(
+                error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: () =>
+                    ref.read(buildProvider.notifier).loadTempBuild(),
+                child: const Text("Retry"),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -74,25 +125,41 @@ class BuildTab extends ConsumerWidget {
   // MAIN CONTENT
   // --------------------------------------------------------------
   Widget _content(BuildContext context, WidgetRef ref, BuildState state) {
-    final build = state.build;
-    final summary = state.summary;
+    // original build galing sa provider
+    final rawBuild = state.build;
 
-    final filteredBuild = Map<String, dynamic>.from(build)
+    // alisin yung __source_build_id key para hindi lumabas sa UI
+    final filteredBuild = Map<String, dynamic>.from(rawBuild)
       ..remove("__source_build_id");
 
-    final entries = filteredBuild.entries.toList();
+    final summary = state.summary;
 
-    final totalPrice = summary["total_price"] ?? 0;
+    final entries = filteredBuild.entries.toList();
+    final totalPrice = (summary["total_price"] ?? 0) as num;
+    final powerUsage = (summary["power_usage"] ?? 0) as num;
+    final hasComponents = entries.isNotEmpty;
 
     return Scaffold(
+      backgroundColor: _softGreyBg,
       appBar: AppBar(
-        title: const Text("Build Workspace"),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: _primaryBlue,
         elevation: 2,
+        centerTitle: true,
+        automaticallyImplyLeading: true, // back arrow
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          "Build Workspace",
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               ref.read(buildProvider.notifier).reset();
+              setState(() => _showAddAutoButtons = true);
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text("Build has been reset")),
               );
@@ -109,46 +176,82 @@ class BuildTab extends ConsumerWidget {
           const SizedBox(width: 8),
         ],
       ),
-
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(buildProvider.notifier).loadTempBuild(),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (entries.isEmpty)
-              _emptyState()
-            else
-              ...entries.map((item) {
-                final cat = item.key;
-                final comp = item.value;
-                return _componentCard(context, ref, cat, comp, filteredBuild);
-              }),
-
-            const SizedBox(height: 20),
-            _addComponentButton(context, filteredBuild),
-
-            const SizedBox(height: 26),
-            const Text(
-              "Build Summary",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () => ref.read(buildProvider.notifier).loadTempBuild(),
+            child: ListView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                hasComponents ? 220 : 160, // space para sa bottom bar
+              ),
+              children: [
+                if (entries.isEmpty) ...[
+                  _emptyState(),
+                  const SizedBox(height: 32),
+                  if (_showAddAutoButtons)
+                    _addAndAutoButtons(context, ref, filteredBuild),
+                ] else ...[
+                  ...entries.map((item) {
+                    final cat = item.key;
+                    final comp = item.value;
+                    return _componentCard(
+                      context,
+                      ref,
+                      cat,
+                      comp,
+                      filteredBuild,
+                    );
+                  }),
+                  const SizedBox(height: 24),
+                  if (_showAddAutoButtons)
+                    _addAndAutoButtons(context, ref, filteredBuild),
+                ],
+              ],
             ),
+          ),
 
-            const SizedBox(height: 12),
-            _summaryCard(totalPrice, summary["power_usage"] ?? 0),
-
-            const SizedBox(height: 30),
-
-            _scrollingActionButtons(context, ref),
-
-            const SizedBox(height: 40),
-          ],
-        ),
+          // BOTTOM SUMMARY + ACTIONS (Save + Cart lang)
+          if (hasComponents)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, -3),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _bottomSummaryStrip(totalPrice, powerUsage),
+                      const SizedBox(height: 10),
+                      _bottomActionButtons(context, ref),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   // --------------------------------------------------------------
-  // COMPONENT CARD (Modern UI)
+  // COMPONENT CARD (New Layout, similar vibes to Cart item)
   // --------------------------------------------------------------
   Widget _componentCard(
     BuildContext context,
@@ -157,243 +260,340 @@ class BuildTab extends ConsumerWidget {
     dynamic comp,
     Map<String, dynamic> build,
   ) {
-    // SAFE CAST
     final isMap = comp is Map<String, dynamic>;
     final name = isMap
         ? comp["name"]?.toString() ?? "Unknown Component"
         : comp.toString();
-    final priceVal = comp["price"];
-    final price = priceVal is num
-        ? priceVal
-        : double.tryParse("$priceVal") ?? 0;
-
+    final rawPrice = isMap ? (comp["price"]?.toString() ?? "0") : "0";
+    final priceText = _formatCurrencyFromRaw(rawPrice);
     final imageUrl = isMap ? (comp["image_url"]?.toString() ?? "") : "";
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-
-        // ---------------- IMAGE ----------------
-        leading: Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.grey.shade200,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // IMAGE
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: 70,
+              height: 70,
+              color: _primaryBlue.withOpacity(0.05),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image,
+                        color: Colors.grey,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.memory,
+                      size: 28,
+                      color: Colors.grey,
+                    ),
+            ),
           ),
-          clipBehavior: Clip.hardEdge,
-          child: (isMap && imageUrl.isNotEmpty)
-              ? Image.network(imageUrl, fit: BoxFit.cover)
-              : const Icon(Icons.image, size: 24, color: Colors.grey),
-        ),
 
-        // ---------------- TITLE ----------------
-        title: Text(
-          name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
+          const SizedBox(width: 12),
 
-        // ---------------- SUBTITLE ----------------
-        subtitle: Text(
-          "₱$price",
-          style: const TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
-
-        // ---------------- ACTION BUTTONS ----------------
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => BuildComponentsScreen(
-                      category: category.toLowerCase(),
-                      isEditing: true,
+          // TEXTS
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // CATEGORY CHIP
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    category.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[700],
                     ),
                   ),
-                );
-              },
+                ),
+                const SizedBox(height: 4),
+                // NAME
+                Text(
+                  name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: _textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // PRICE
+                Text(
+                  priceText,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: _softGreen,
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () =>
-                  ref.read(buildProvider.notifier).removeComponent(category),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------
-  // ADD COMPONENT BUTTON (Better UI)
-  // --------------------------------------------------------------
-  Widget _addComponentButton(BuildContext context, Map<String, dynamic> build) {
-    return SizedBox(
-      // ← ADDED SizedBox for full width
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blue.shade600,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
           ),
-        ),
-        icon: const Icon(Icons.add_circle_outline),
-        label: const Text("Add Component", style: TextStyle(fontSize: 16)),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => BuildCategoryScreen(
-                selectedCategories: build.keys
-                    .toSet(), // ⭐ pass selected categories
+
+          const SizedBox(width: 4),
+
+          // ACTIONS
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
+                splashRadius: 18,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => BuildComponentsScreen(
+                        category: category.toLowerCase(),
+                        isEditing: true,
+                      ),
+                    ),
+                  );
+                },
               ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------
-  // SUMMARY CARD (polished UI)
-  // --------------------------------------------------------------
-  Widget _summaryCard(int totalPrice, int powerUsage) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.blue.shade100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Total Price: ₱$totalPrice",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Power Usage: ${powerUsage}W",
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                splashRadius: 18,
+                onPressed: () {
+                  ref.read(buildProvider.notifier).removeComponent(category);
+                  // kapag nag-delete, ibalik yung Add + Auto buttons
+                  setState(() => _showAddAutoButtons = true);
+                },
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _scrollingActionButtons(BuildContext context, WidgetRef ref) {
+  // --------------------------------------------------------------
+  // ADD COMPONENT + AUTO BUILD ROW (scrollable, nasa pinakababa ng list)
+  // --------------------------------------------------------------
+  Widget _addAndAutoButtons(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> build,
+  ) {
     return Row(
       children: [
         Expanded(
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal,
+              backgroundColor: _primaryBlue, // blue
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.add_circle_outline, color: Colors.white),
+            label: const Text(
+              "Add Component",
+              style: TextStyle(fontSize: 15, color: Colors.white),
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BuildCategoryScreen(
+                    selectedCategories: build.keys.toSet(),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal, // teal
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
             icon: const Icon(Icons.auto_fix_high, color: Colors.white),
-            label: const Text("Auto", style: TextStyle(color: Colors.white)),
+            label: const Text(
+              "Auto Build",
+              style: TextStyle(fontSize: 15, color: Colors.white),
+            ),
             onPressed: () async {
               try {
                 await ref.read(buildProvider.notifier).autoComplete();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Auto-complete successful!")),
+                  const SnackBar(
+                    content: Text("Auto-complete successful!"),
+                  ),
                 );
+
+                // pag nag-Auto Build, itago yung Add + Auto row
+                setState(() => _showAddAutoButtons = false);
               } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
+                );
               }
             },
           ),
         ),
+      ],
+    );
+  }
 
-        const SizedBox(width: 10),
+  // --------------------------------------------------------------
+  // BOTTOM SUMMARY STRIP (inside fixed bottom bar)
+  // --------------------------------------------------------------
+  Widget _bottomSummaryStrip(num totalPrice, num powerUsage) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          // Total
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Total",
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _formatCurrency(totalPrice),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _textDark,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 16),
+          // Power usage pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.bolt, size: 14, color: Colors.orange),
+                const SizedBox(width: 4),
+                Text(
+                  "${powerUsage.toStringAsFixed(0)}W",
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.orange,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+        ],
+      ),
+    );
+  }
 
+  // --------------------------------------------------------------
+  // BOTTOM ACTION BUTTONS (Save + Cart only)
+  // --------------------------------------------------------------
+  Widget _bottomActionButtons(BuildContext context, WidgetRef ref) {
+    return Row(
+      children: [
         Expanded(
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              backgroundColor: _primaryBlue,
+              padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            icon: const Icon(Icons.save, color: Colors.white),
-            label: const Text("Save", style: TextStyle(color: Colors.white)),
+            icon: const Icon(Icons.save, color: Colors.white, size: 18),
+            label: const Text(
+              "Save",
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
             onPressed: () => _saveBuildDialog(context, ref),
           ),
         ),
-
-        const SizedBox(width: 10),
-
+        const SizedBox(width: 8),
         Expanded(
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            icon: const Icon(Icons.shopping_cart, color: Colors.white),
-            label: const Text("Cart", style: TextStyle(color: Colors.white)),
+            icon:
+                const Icon(Icons.shopping_cart, color: Colors.white, size: 18),
+            label: const Text(
+              "Cart",
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
             onPressed: () async {
               try {
                 final res = await ref
                     .read(apiClientProvider)
                     .post("/cart/addTempBuild", {});
 
-                // SUCCESS MESSAGE
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text("Added ${res['count']} items to cart!"),
                   ),
                 );
 
-                // ⭐ CLEAR TEMP BUILD AFTER ADD TO CART
                 await ref.read(buildProvider.notifier).reset();
-
-                // Refresh UI
+                setState(() => _showAddAutoButtons = true);
                 await ref.read(buildProvider.notifier).loadTempBuild();
               } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
+                );
               }
             },
           ),
@@ -431,91 +631,7 @@ class BuildTab extends ConsumerWidget {
   }
 
   // --------------------------------------------------------------
-  // ACTION BUTTONS
-  // --------------------------------------------------------------
-  Widget _actionButtons(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        _roundedActionButton(
-          icon: Icons.auto_fix_high,
-          label: "Auto Complete",
-          color: Colors.teal,
-          onTap: () async {
-            try {
-              await ref.read(buildProvider.notifier).autoComplete();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Auto-complete successful!")),
-              );
-            } catch (e) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text("Error: $e")));
-            }
-          },
-        ),
-        const SizedBox(height: 12),
-        _roundedActionButton(
-          icon: Icons.save,
-          label: "Save Build",
-          color: Colors.orange,
-          onTap: () => _saveBuildDialog(context, ref),
-        ),
-        const SizedBox(height: 12),
-        _roundedActionButton(
-          icon: Icons.shopping_cart,
-          label: "Add Build to Cart",
-          color: Colors.green,
-          onTap: () async {
-            try {
-              final res = await ref
-                  .read(apiClientProvider)
-                  .post("/cart/addTempBuild", {});
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Added ${res['count']} items to cart!")),
-              );
-            } catch (e) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text("Error: $e")));
-            }
-          },
-        ),
-      ],
-    );
-  }
-
-  // --------------------------------------------------------------
-  // Reusable rounded button
-  // --------------------------------------------------------------
-  Widget _roundedActionButton({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return SizedBox(
-      // ← ADDED SizedBox for full width
-      width: double.infinity,
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        icon: Icon(icon, color: Colors.white),
-        label: Text(
-          label,
-          style: const TextStyle(fontSize: 16, color: Colors.white),
-        ),
-        onPressed: onTap,
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------
-  // Save Build Dialog
+  // Save Build Dialog (Save button blue)
   // --------------------------------------------------------------
   void _saveBuildDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
@@ -531,33 +647,39 @@ class BuildTab extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(
-                context,
-                rootNavigator: true,
-              ).pop(); // close dialog only
+              Navigator.of(context, rootNavigator: true).pop();
             },
             child: const Text("Cancel"),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _primaryBlue,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
               final name = controller.text.trim();
 
-              // ❗ ONLY ONE POP — close dialog ONLY
               Navigator.of(context, rootNavigator: true).pop();
 
               try {
                 await ref.read(buildProvider.notifier).save(name);
-
-                // tell Saved tab to refresh
                 SavedBuildsPage.shouldRefresh = true;
 
+                if (!mounted) return;
+
+                // Pagkatapos mag-save, siguraduhin na visible ulit Add + Auto buttons
+                setState(() => _showAddAutoButtons = true);
+
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Build saved successfully!")),
+                  const SnackBar(
+                    content: Text("Build saved successfully!"),
+                  ),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Error: $e")));
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error: $e")),
+                );
               }
             },
             child: const Text("Save"),
