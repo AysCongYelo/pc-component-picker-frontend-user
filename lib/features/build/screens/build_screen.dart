@@ -77,7 +77,11 @@ class BuildTab extends ConsumerWidget {
     final build = state.build;
     final summary = state.summary;
 
-    final entries = build.entries.toList();
+    final filteredBuild = Map<String, dynamic>.from(build)
+      ..remove("__source_build_id");
+
+    final entries = filteredBuild.entries.toList();
+
     final totalPrice = summary["total_price"] ?? 0;
 
     return Scaffold(
@@ -117,11 +121,11 @@ class BuildTab extends ConsumerWidget {
               ...entries.map((item) {
                 final cat = item.key;
                 final comp = item.value;
-                return _componentCard(context, ref, cat, comp, build);
+                return _componentCard(context, ref, cat, comp, filteredBuild);
               }),
 
             const SizedBox(height: 20),
-            _addComponentButton(context, build),
+            _addComponentButton(context, filteredBuild),
 
             const SizedBox(height: 26),
             const Text(
@@ -158,7 +162,11 @@ class BuildTab extends ConsumerWidget {
     final name = isMap
         ? comp["name"]?.toString() ?? "Unknown Component"
         : comp.toString();
-    final price = isMap ? (comp["price"]?.toString() ?? "0") : "0";
+    final priceVal = comp["price"];
+    final price = priceVal is num
+        ? priceVal
+        : double.tryParse("$priceVal") ?? 0;
+
     final imageUrl = isMap ? (comp["image_url"]?.toString() ?? "") : "";
 
     return Container(
