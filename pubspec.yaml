@@ -81,6 +81,7 @@ flutter:
     - assets/banners/autobuild.jpg
     - assets/banners/featured.jpg
     - assets/banners/tips.jpg
+    - assets/build_bundle.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
