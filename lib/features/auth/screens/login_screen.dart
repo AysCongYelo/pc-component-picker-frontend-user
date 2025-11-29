@@ -166,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const SizedBox(height: 20),
 
                     const Text(
-                      'PC Component Picker',
+                      'PC',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
