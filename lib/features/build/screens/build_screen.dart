@@ -73,6 +73,7 @@ class _BuildTabState extends ConsumerState<BuildTab> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        // Sa error state, pinabayaan ko pa ring may RESET
         actions: [
           TextButton(
             onPressed: () {
@@ -154,27 +155,30 @@ class _BuildTabState extends ConsumerState<BuildTab> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ref.read(buildProvider.notifier).reset();
-              setState(() => _showAddAutoButtons = true);
+        // ✅ RESET lalabas lang kapag may components
+        actions: hasComponents
+            ? [
+                TextButton(
+                  onPressed: () {
+                    ref.read(buildProvider.notifier).reset();
+                    setState(() => _showAddAutoButtons = true);
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Build has been reset")),
-              );
-            },
-            child: const Text(
-              "RESET",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Build has been reset")),
+                    );
+                  },
+                  child: const Text(
+                    "RESET",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ]
+            : [],
       ),
       body: Stack(
         children: [
@@ -445,7 +449,7 @@ class _BuildTabState extends ConsumerState<BuildTab> {
             ),
             icon: const Icon(Icons.auto_fix_high, color: Colors.white),
             label: const Text(
-              "Auto Build",
+              "Auto Complete",
               style: TextStyle(fontSize: 15, color: Colors.white),
             ),
             onPressed: () async {

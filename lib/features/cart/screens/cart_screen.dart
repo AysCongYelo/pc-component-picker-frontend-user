@@ -48,34 +48,67 @@ class _CartScreenState extends State<CartScreen> {
     return _formatCurrency(v);
   }
 
-  // ---------------- LOAD CART ----------------
-  Future<void> _loadCart() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+ Future<void> _loadCart() async {
+  setState(() {
+    _loading = true;
+    _error = null;
+  });
 
-    try {
-      final res = await _api.get("/cart");
-      final items = (res["items"] as List).cast<Map<String, dynamic>>();
+  try {
+    final res = await _api.get("/cart");
+    final rawItems = (res["items"] as List).cast<Map<String, dynamic>>();
 
-      setState(() {
-        _items = items;
+    // --- linisin yung cart: tanggalin yung items
+    //     na naka-link sa saved build na wala na ---
+    final List<Map<String, dynamic>> cleanedItems = [];
 
-        // Keep only selections that still exist in cart
-        _selectedItems = _selectedItems.where((id) {
-          return _items.any((item) => item["id"].toString() == id);
-        }).toSet();
+    for (final item in rawItems) {
+      final category = item["category"];
 
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      // normal component item, diretso add
+      if (category != "build_bundle") {
+        cleanedItems.add(item);
+        continue;
+      }
+
+      // build_bundle → i-check kung buhay pa yung build
+      final buildId =
+          item["build_id"] ?? item["saved_build_id"] ?? item["builder_id"];
+
+      if (buildId == null) {
+        // wala nang reference, burahin na lang sa cart
+        await _api.delete("/cart/deleteRow/${item["id"]}");
+        continue;
+      }
+
+      try {
+        // kung ok pa ang request, ibig sabihin existing pa yung build
+        await _api.get("/builder/my/$buildId");
+        cleanedItems.add(item);
+      } catch (e) {
+        // 404 / error → wala na yung saved build, burahin na rin sa cart
+        await _api.delete("/cart/deleteRow/${item["id"]}");
+      }
     }
+
+    setState(() {
+      _items = cleanedItems;
+
+      // Keep only selections that still exist in cart
+      _selectedItems = _selectedItems.where((id) {
+        return _items.any((item) => item["id"].toString() == id);
+      }).toSet();
+
+      _loading = false;
+    });
+  } catch (e) {
+    setState(() {
+      _error = e.toString();
+      _loading = false;
+    });
   }
+}
+
 
   Widget _summaryRow(
     String label,
@@ -145,14 +178,65 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  // ---------------- HELPER: LOAD COMPONENTS FOR A BUILD ----------------
+  Future<List<Map<String, dynamic>>> _loadBuildComponents(dynamic buildId) async {
+    final List<Map<String, dynamic>> comps = [];
+    if (buildId == null) return comps;
+
+    try {
+      // same endpoint / logic as SavedBuildDetailsPage
+      final res = await _api.get("/builder/my/$buildId");
+      final build = res["build"] ?? {};
+      final expanded =
+          build["expanded"] ?? build["components"] ?? build["preview"] ?? {};
+
+      if (expanded is Map) {
+        expanded.forEach((cat, comp) {
+          if (comp is Map<String, dynamic>) {
+            comps.add({
+              "category": cat.toString(),
+              "name": comp["name"] ?? "Unknown",
+              "price": comp["price"] ?? comp["component_price"] ?? 0,
+            });
+          }
+        });
+      }
+    } catch (e) {
+      // kung wala na yung build (na-delete), tahimik lang
+      debugPrint("loadBuildComponents error for $buildId: $e");
+    }
+
+    return comps;
+  }
+
   // ---------------- CHECKOUT BOTTOM SHEET ----------------
-  void _showCheckoutDialog() {
+  Future<void> _showCheckoutDialog() async {
     final parentContext = context;
 
     final selected = _items
         .where((item) => _selectedItems.contains(item["id"].toString()))
         .toList();
 
+    if (selected.isEmpty) return;
+
+    // ✅ PRE-LOAD COMPONENTS FOR ALL SELECTED BUILD_BUNDLE ITEMS
+    final Map<String, List<Map<String, dynamic>>> bundleComponentsByCartId = {};
+
+    for (final item in selected) {
+      final category = item["category"];
+      if (category == "build_bundle") {
+        // NOTE: depende sa backend mo, adjust kung ano talaga field:
+        final buildId =
+            item["build_id"] ?? item["saved_build_id"] ?? item["builder_id"];
+
+        if (buildId != null) {
+          final comps = await _loadBuildComponents(buildId);
+          bundleComponentsByCartId[item["id"].toString()] = comps;
+        }
+      }
+    }
+
+    // ignore: use_build_context_synchronously
     showModalBottomSheet(
       context: parentContext,
       isScrollControlled: true,
@@ -204,38 +288,149 @@ class _CartScreenState extends State<CartScreen> {
                       itemCount: selected.length,
                       itemBuilder: (context, i) {
                         final item = selected[i];
+                        final idString = item["id"].toString();
                         final name = _itemDisplayName(item);
-                        final priceText = _formatCurrencyFromRaw(
-                          _itemDisplayPrice(item),
-                        );
+                        final priceText =
+                            _formatCurrencyFromRaw(_itemDisplayPrice(item));
+                        final isBundle = item["category"] == "build_bundle";
+                        final comps =
+                            bundleComponentsByCartId[idString] ?? const [];
 
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: _textDark,
+                        // 👉 NON-BUNDLE OR WALANG COMPONENTS → simple row lang
+                        if (!isBundle || comps.isEmpty) {
+                          return Column(
+                            children: [
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: _textDark,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  isBundle
+                                      ? "${item["bundle_item_count"] ?? 0} items in bundle"
+                                      : "Qty: ${item["quantity"] ?? 1}",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                trailing: Text(
+                                  priceText,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: _softGreen,
+                                  ),
+                                ),
+                              ),
+                              const Divider(height: 16),
+                            ],
+                          );
+                        }
+
+                        // 👉 BUILD_BUNDLE NA MAY COMPONENTS → EXACTO STYLE NG SavedBuildDetails
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ExpansionTile(
+                              tilePadding: EdgeInsets.zero,
+                              childrenPadding: const EdgeInsets.only(
+                                left: 16,
+                                right: 4,
+                                bottom: 8,
+                              ),
+                              title: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: _textDark,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    priceText,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: _softGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Text(
+                                "${comps.length} items in bundle",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: comps.map((comp) {
+                                    final compName =
+                                        (comp["name"] ?? "Unknown component")
+                                            .toString();
+                                    final compCat =
+                                        (comp["category"] ?? "")
+                                            .toString()
+                                            .toUpperCase();
+                                    final rawPrice = comp["price"] ?? 0;
+                                    final priceNum = (rawPrice is num)
+                                        ? rawPrice
+                                        : num.tryParse(
+                                              rawPrice.toString(),
+                                            ) ??
+                                            0;
+                                    final compPriceText =
+                                        _formatCurrency(priceNum);
+
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 4.0),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              "$compName${compCat.isNotEmpty ? " ($compCat)" : ""}",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[800],
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            compPriceText,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: _softGreen,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
                             ),
-                          ),
-                          subtitle: Text(
-                            item["category"] == "build_bundle"
-                                ? "${item["bundle_item_count"]} items in bundle"
-                                : "Qty: ${item["quantity"] ?? 1}",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          trailing: Text(
-                            priceText,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: _softGreen,
-                            ),
-                          ),
+                            const Divider(height: 16),
+                          ],
                         );
                       },
                     ),
@@ -498,7 +693,8 @@ class _CartScreenState extends State<CartScreen> {
                                       setState(() {
                                         if (checked == true) {
                                           _selectedItems = _items
-                                              .map((e) => e["id"].toString())
+                                              .map(
+                                                  (e) => e["id"].toString())
                                               .toSet();
                                         } else {
                                           _selectedItems.clear();

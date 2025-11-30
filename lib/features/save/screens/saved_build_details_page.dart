@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/core/services/api_client.dart';
 import 'saved_builds_screen.dart' show SavedBuild, SavedBuildsPage;
-import 'package:frontend/features/cart/widgets/checkout_modal.dart';
 
 class SavedBuildDetailsPage extends StatefulWidget {
   final SavedBuild savedBuild;
@@ -19,6 +18,13 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
   Map<String, dynamic> summary = {};
   bool loading = true;
   String? error;
+
+  // ------- shared colors -------
+  Color get _primaryBlue => const Color(0xFF2563EB);
+  Color get _primaryBlueLight => const Color(0xFF3B82F6);
+  Color get _softGreen => const Color(0xFF22C55E);
+  Color get _softGreyBg => const Color(0xFFF3F4F6);
+  Color get _textDark => const Color(0xFF111827);
 
   @override
   void initState() {
@@ -56,11 +62,470 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
         );
   }
 
+  String _formatCurrency(num value) {
+    final s = value.toStringAsFixed(2);
+    final parts = s.split('.');
+    final intPart = parts[0];
+    final decPart = parts[1];
+
+    final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+    final formattedInt = intPart.replaceAllMapped(reg, (m) => '${m[1]},');
+
+    return '₱$formattedInt.$decPart';
+  }
+
+  // --------------------------------------------------
+  // CHECKOUT BOTTOM SHEET PARA SA ISANG SAVED BUILD
+  // --------------------------------------------------
+  void _showCheckoutForThisBuild() {
+    final parentContext = context;
+
+    // gawin nating list yung laman ng `expanded`
+    final List<Map<String, dynamic>> bundleComponents = [];
+    expanded.forEach((cat, comp) {
+      if (comp is Map<String, dynamic>) {
+        bundleComponents.add({
+          "category": cat,
+          "name": comp["name"] ?? "Unknown",
+          "price": comp["price"] ?? comp["component_price"] ?? 0,
+        });
+      }
+    });
+
+    final double subtotal = widget.savedBuild.price;
+    const double shippingFee = 150;
+    const double tax = 0;
+
+    showModalBottomSheet(
+      context: parentContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        bool isProcessing = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.75,
+              maxChildSize: 0.9,
+              minChildSize: 0.5,
+              expand: false,
+              builder: (_, scrollController) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _softGreyBg,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // handle
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[400],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        "Order Summary",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: _textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ------------ SCROLL CONTENT ------------
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          children: [
+                            // HEADER CARD FOR THIS BUILD
+
+                            // COMPONENTS LIST (if meron)
+                            if (bundleComponents.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: Colors.grey[200]!),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.view_list_rounded,
+                                          size: 18,
+                                          color: Colors.grey[700],
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          "Bundle items",
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _textDark,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    ...bundleComponents.map((comp) {
+                                      final compName =
+                                          (comp["name"] ?? "Unknown component")
+                                              .toString();
+                                      final compCat = (comp["category"] ?? "")
+                                          .toString()
+                                          .toUpperCase();
+                                      final compPrice = comp["price"] ?? 0;
+                                      final numPrice = (compPrice is num)
+                                          ? compPrice
+                                          : num.tryParse(
+                                                  compPrice.toString(),
+                                                ) ??
+                                                0;
+                                      final priceText = _formatCurrency(
+                                        numPrice,
+                                      );
+
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 4,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    compName,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: _textDark,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                  if (compCat.isNotEmpty)
+                                                    Text(
+                                                      compCat,
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            Text(
+                                              priceText,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: _softGreen,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // ------------ TOTAL CARD ------------
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            _summaryRow("Subtotal", _formatCurrency(subtotal)),
+                            _summaryRow(
+                              "Shipping Fee",
+                              _formatCurrency(shippingFee),
+                            ),
+                            _summaryRow("Tax", _formatCurrency(tax)),
+                            const Divider(height: 20),
+                            _summaryRow(
+                              "Total",
+                              _formatCurrency(subtotal + shippingFee + tax),
+                              bold: true,
+                              big: true,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // ------------ CONFIRM BUTTON ------------
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: isProcessing
+                              ? null
+                              : () async {
+                                  setSheetState(() {
+                                    isProcessing = true;
+                                  });
+
+                                  try {
+                                    final res = await _api.post(
+                                      "/checkout/build/${widget.savedBuild.id}",
+                                      {"payment_method": "cod", "notes": null},
+                                    );
+
+                                    SavedBuildsPage.shouldRefresh = true;
+
+                                    if (!ctx.mounted) return;
+                                    Navigator.pop(modalContext);
+
+                                    Navigator.pushReplacementNamed(
+                                      ctx,
+                                      "/order-success",
+                                      arguments: {
+                                        "orderId": res["order"]["id"],
+                                      },
+                                    );
+                                  } catch (e) {
+                                    if (!ctx.mounted) return;
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                        content: Text("Checkout failed: $e"),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  } finally {
+                                    if (ctx.mounted) {
+                                      setSheetState(() {
+                                        isProcessing = false;
+                                      });
+                                    }
+                                  }
+                                },
+                          child: Text(
+                            isProcessing ? "Processing..." : "Confirm Order",
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _summaryRow(
+    String label,
+    String value, {
+    bool bold = false,
+    bool big = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: big ? 16 : 13,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+              color: _textDark,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: big ? 18 : 13,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+              color: bold ? _primaryBlue : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- COMPONENT CARD (new layout) ----------
+  Widget _componentCard(String category, Map<String, dynamic> c) {
+    final imageUrl = c["image_url"]?.toString() ?? "";
+    final priceNum = double.tryParse(c["price"]?.toString() ?? "") ?? 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // IMAGE
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: 70,
+              height: 70,
+              color: _primaryBlue.withOpacity(0.05),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(
+                        child: Icon(
+                          Icons.memory,
+                          color: _primaryBlue,
+                          size: 26,
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Icon(Icons.memory, color: _primaryBlue, size: 26),
+                    ),
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // TEXTS
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // category chip
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        category.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+
+                // component name
+                Text(
+                  c["name"] ?? "Unnamed",
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _textDark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // PRICE
+          Text(
+            _formatCurrency(priceNum),
+            style: TextStyle(
+              color: _softGreen,
+              fontWeight: FontWeight.w700,
+              fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ------------------------------
+  // MAIN BUILD
+  // ------------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.savedBuild.name)),
-
+      backgroundColor: _softGreyBg,
+      appBar: AppBar(
+        backgroundColor: _primaryBlue,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          "Saved Build Details",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+      ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : error != null
@@ -124,114 +589,12 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
                       );
                     }
 
-                    final c = comp;
-                    final imageUrl = c["image_url"]?.toString() ?? "";
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            category.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: imageUrl.isNotEmpty
-                                    ? Image.network(
-                                        imageUrl,
-                                        width: 70,
-                                        height: 70,
-                                        fit: BoxFit.cover,
-                                      )
-                                    : Container(
-                                        width: 70,
-                                        height: 70,
-                                        color: Colors.grey.shade300,
-                                        child: Icon(
-                                          Icons.memory,
-                                          color: Colors.grey.shade600,
-                                        ),
-                                      ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  c["name"] ?? "Unnamed",
-                                  style: const TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                "₱${formatPrice(double.tryParse(c['price'].toString()) ?? 0)}",
-                                style: const TextStyle(
-                                  color: Colors.blue,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
+                    final c = comp as Map<String, dynamic>;
+                    return _componentCard(category, c);
                   }),
-
-                const SizedBox(height: 20),
-
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue.shade100),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "Total Price: ₱${formatPrice(double.tryParse(summary["total_price"].toString()) ?? 0)}",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Power Usage: ${summary["power_usage"] ?? 0}W",
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 80),
               ],
             ),
-
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -257,9 +620,6 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
                         null,
                       );
 
-                      // remove from saved list
-                      await _api.delete("/builder/my/${widget.savedBuild.id}");
-
                       SavedBuildsPage.shouldRefresh = true;
 
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,7 +634,7 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: _softGreen,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -286,42 +646,13 @@ class _SavedBuildDetailsPageState extends State<SavedBuildDetailsPage> {
                   ),
                 ),
               ),
-
               const SizedBox(width: 12),
-
               // CHECKOUT
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {
-                    showCheckoutModal(
-                      context,
-                      [
-                        {
-                          "name": widget.savedBuild.name,
-                          "price": widget.savedBuild.price,
-                          "quantity": 1,
-                          "bundle_item_count": expanded.length,
-                        },
-                      ],
-                      () async {
-                        // CHECKOUT REQUEST
-                        final result = await _api.post(
-                          "/checkout/build/${widget.savedBuild.id}",
-                          {"payment_method": "cod", "notes": null},
-                        );
-
-                        SavedBuildsPage.shouldRefresh = true;
-
-                        // ⭐ DO NOT POP PAGE HERE
-                        // The modal will close itself.
-                        // The success screen will handle navigation.
-
-                        return result;
-                      },
-                    );
-                  },
+                  onPressed: _showCheckoutForThisBuild,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
+                    backgroundColor: _primaryBlue,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

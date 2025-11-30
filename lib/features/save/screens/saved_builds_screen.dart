@@ -166,7 +166,7 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             "Your saved PC builds will appear here.",
             style: TextStyle(color: Color(0xFF94A3B8)),
           ),
@@ -176,10 +176,13 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
   }
 
   // ------------------------------
-  // BUILD CARD UI (FUNCTION-SAFE)
+  // BUILD CARD UI (WITH ARROW, NO PARTS/WATTS)
   // ------------------------------
   Widget _buildBuildCard(SavedBuild build) {
-    return GestureDetector(
+    final borderRadius = BorderRadius.circular(18);
+
+    return InkWell(
+      borderRadius: borderRadius,
       onTap: () async {
         final result = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
@@ -196,7 +199,7 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: borderRadius,
           border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
@@ -207,7 +210,6 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
           ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             // LEFT SIDE INFO
             Expanded(
@@ -235,14 +237,29 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
               ),
             ),
 
-            // DELETE BUTTON
-            IconButton(
-              icon: const Icon(
-                Icons.delete_rounded,
-                color: Color(0xFFF43F5E),
-                size: 26,
-              ),
-              onPressed: () => _confirmAndDelete(build.id),
+            const SizedBox(width: 8),
+
+            // RIGHT SIDE: DELETE + ARROW (PINAKA-RIGHT)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.delete_rounded,
+                    color: Color(0xFFF43F5E),
+                    size: 24,
+                  ),
+                  onPressed: () => _confirmAndDelete(build.id),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded, // parang ">"
+                  color: Color(0xFF9CA3AF),
+                  size: 18,
+                ),
+              ],
             ),
           ],
         ),
@@ -322,13 +339,13 @@ class _SavedBuildsPageState extends State<SavedBuildsPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? Center(child: Text(_error!))
-          : _savedBuilds.isEmpty
-          ? _buildEmptyState()
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: _savedBuilds.map(_buildBuildCard).toList(),
-            ),
+              ? Center(child: Text(_error!))
+              : _savedBuilds.isEmpty
+                  ? _buildEmptyState()
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: _savedBuilds.map(_buildBuildCard).toList(),
+                    ),
     );
   }
 }

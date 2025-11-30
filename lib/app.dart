@@ -23,6 +23,7 @@ import 'features/home/screens/autobuild_result_screen.dart';
 import 'features/save/screens/saved_builds_screen.dart';
 import 'features/orders/orders_list_screen.dart';
 import 'features/orders/order_success_screen.dart';
+import 'features/orders/order_detail_screen.dart'; // 👈 ADD THIS
 
 // PROFILE + BUILD
 import 'features/profile/screens/edit_profile_screen.dart';
@@ -41,39 +42,38 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light(),
 
+      // ----------------- HOME (logic for intro + auth) -----------------
       home: Builder(
         builder: (_) {
-          // -----------------------------------------
-          // 🚀 1) STILL CHECKING INTRO FLAG?
-          // -----------------------------------------
+          // INTRO FLAG LOADING → splash
           if (intro.isLoading) return const SplashScreen();
 
-          // -----------------------------------------
-          // 🚀 2) NOT SEEN INTRO → SHOW ONBOARDING
-          // -----------------------------------------
+          // HINDI PA NAKAKITA NG INTRO → IntroScreen
           if (intro.value == false) {
             return const IntroScreen();
           }
 
-          // -----------------------------------------
-          // 🚀 3) CHECK AUTH AFTER INTRO
-          // -----------------------------------------
+          // AUTH STATE LOADING → splash
           if (auth.isLoading) return const SplashScreen();
 
+          // AUTH OK → main navigation
           if (auth.isAuthenticated) {
             return const MainNavigation();
           }
 
+          // else → Login
           return const LoginScreen();
         },
       ),
 
+      // ----------------- NAMED ROUTES -----------------
       routes: {
         // AUTH
         LoginScreen.routeName: (_) => const LoginScreen(),
         SignupScreen.routeName: (_) => const SignupScreen(),
         "/forgot-password": (_) => const ForgotPasswordScreen(),
 
+        // NAV
         MainNavigation.routeName: (_) => const MainNavigation(),
         IntroScreen.routeName: (_) => const IntroScreen(),
         EditProfileScreen.routeName: (_) => const EditProfileScreen(),
@@ -97,11 +97,17 @@ class MyApp extends ConsumerWidget {
           return OrderSuccessScreen(orderId: args?["orderId"] ?? "UNKNOWN");
         },
 
-        // OTHER SCREENS
+        // ✅ ORDER LIST
         "/my-orders": (_) => const OrdersListScreen(),
+
+        // ✅ ORDER DETAIL (ito yung kulang kaya nag-eerror ka)
+        "/order-detail": (_) => const OrderDetailScreen(),
+
+        // SAVE + SEARCH
         "/saved": (_) => const SavedBuildsPage(),
         "/search": (_) => const SearchScreen(),
 
+        // ARTICLE DETAIL
         ArticleDetailScreen.routeName: (ctx) {
           final args =
               ModalRoute.of(ctx)?.settings.arguments as Map<String, dynamic>?;

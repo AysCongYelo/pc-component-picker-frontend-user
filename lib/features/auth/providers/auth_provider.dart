@@ -62,7 +62,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isAuthenticated: true, user: profile);
     });
   }
-
+  
   // ------------------------------------------------------------------
   Future<Map<String, dynamic>?> _loadProfile(String uid) async {
     return await supabase.from("profiles").select().eq("id", uid).maybeSingle();
