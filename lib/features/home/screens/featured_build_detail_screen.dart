@@ -169,7 +169,6 @@ class _FeaturedBuildDetailScreenState
                 children: [
                   _row("Total Price", "₱${buildData?["total_price"]}"),
                   const SizedBox(height: 8),
-                  _row("Total Wattage", "$totalWattage W"),
                 ],
               ),
             ),
