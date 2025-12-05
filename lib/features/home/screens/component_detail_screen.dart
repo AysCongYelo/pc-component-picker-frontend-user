@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:frontend/features/build/providers/build_provider.dart';
+import 'package:pc_component_picker/features/build/providers/build_provider.dart';
 import '../../../core/services/api_client_provider.dart';
 
 // 🔧 Category UUID → slug mapping
@@ -32,7 +32,13 @@ class ComponentDetailScreen extends ConsumerWidget {
     final categorySlug = categorySlugMap[component["category_id"]];
 
     return Scaffold(
-      appBar: AppBar(title: Text(name, overflow: TextOverflow.ellipsis)),
+      backgroundColor: const Color(0xFFF3F4F6),
+
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1976D2),
+        elevation: 0,
+        title: Text(name, overflow: TextOverflow.ellipsis),
+      ),
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -42,10 +48,10 @@ class ComponentDetailScreen extends ConsumerWidget {
             // IMAGE
             Center(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 child: Image.network(
                   imageUrl,
-                  height: 220,
+                  height: 240,
                   width: double.infinity,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
@@ -59,39 +65,41 @@ class ComponentDetailScreen extends ConsumerWidget {
 
             const SizedBox(height: 20),
 
+            // NAME
             Text(
               name,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               brand,
               style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 18),
 
+            // PRICE
             Text(
               "₱$price",
               style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
                 color: Colors.blue,
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             const Text(
               "Specifications",
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             if (specs.isNotEmpty)
               ...specs.entries.map(
                 (e) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -113,34 +121,43 @@ class ComponentDetailScreen extends ConsumerWidget {
                 ),
               )
             else
-              const Text(
-                "No specs available",
-                style: TextStyle(color: Colors.grey),
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  "No specs available",
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
+
+            const SizedBox(height: 80),
           ],
         ),
       ),
 
+      // ------------------------------------------------------------------
       // ⭐ BOTTOM BUTTONS
+      // ------------------------------------------------------------------
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
+        color: Colors.white,
         child: Row(
           children: [
-            // ---------------------------
             // ADD TO BUILD
-            // ---------------------------
             Expanded(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
-                  minimumSize: const Size(0, 50),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () async {
                   final api = ref.read(apiClientProvider);
 
                   if (categorySlug == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Category not mapped.")),
+                      const SnackBar(content: Text("Category not mapped")),
                     );
                     return;
                   }
@@ -148,21 +165,20 @@ class ComponentDetailScreen extends ConsumerWidget {
                   bool isReplacing = false;
 
                   try {
-                    // 1️⃣ Load current temp build
+                    // Load temp build
                     final current = await api.get("/builder/temp");
                     final tempBuild = current["build"] ?? {};
 
-                    // Check if category already exists
                     isReplacing = tempBuild[categorySlug] != null;
 
-                    // 2️⃣ Ask confirmation ONLY if replacing
+                    // Confirm replace
                     if (isReplacing) {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text("Component Already Installed"),
+                          title: const Text("Replace Component?"),
                           content: Text(
-                            "Your build already has a ${categorySlug.toUpperCase()}.\nReplace it?",
+                            "Your build already has ${categorySlug.toUpperCase()}.\nReplace it?",
                           ),
                           actions: [
                             TextButton(
@@ -180,21 +196,15 @@ class ComponentDetailScreen extends ConsumerWidget {
                       if (confirm != true) return;
                     }
 
-                    // 3️⃣ Add component
-                    final response = await api.post("/builder/temp/add", {
+                    // Add component
+                    await api.post("/builder/temp/add", {
                       "category": categorySlug,
                       "componentId": component["id"],
                     });
 
-                    print("✅ Add response: $response");
-
-                    // 🔄 Invalidate build provider BEFORE navigation
                     ref.invalidate(buildProvider);
-
-                    // Small delay to allow UI refresh
                     await Future.delayed(const Duration(milliseconds: 120));
 
-                    // 4️⃣ Success feedback
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -205,82 +215,40 @@ class ComponentDetailScreen extends ConsumerWidget {
                       ),
                     );
 
-                    // 5️⃣ Go back home
-                    if (context.mounted) {
-                      Navigator.of(context).popUntil((route) => route.isFirst);
-                    }
-                  }
-                  // ===============================
-                  // 6️⃣ ERROR HANDLING
-                  // ===============================
-                  catch (e) {
-                    print("❌ Error caught: $e");
+                    Navigator.of(context).popUntil((r) => r.isFirst);
+                  } catch (e) {
+                    String msg = "Failed to add component";
 
                     if (e is DioException) {
-                      print("📡 DioException response: ${e.response?.data}");
-                      print("📊 Status code: ${e.response?.statusCode}");
-
-                      final raw = e.response?.data;
-                      final data = raw is Map
-                          ? Map<String, dynamic>.from(raw)
-                          : null;
-
-                      // Incompatible component
-                      if (data != null &&
-                          data["error"] == "Incompatible component") {
-                        await showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text("Incompatible Component"),
-                            content: Text(
-                              data["reason"] ??
-                                  "This part doesn't fit your build.",
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text("OK"),
-                              ),
-                            ],
-                          ),
-                        );
-                        return;
-                      }
-
-                      // Backend error message
-                      if (data != null && data["error"] != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(data["error"].toString())),
-                        );
-                        return;
+                      final resp = e.response?.data;
+                      if (resp is Map && resp["reason"] != null) {
+                        msg = resp["reason"];
                       }
                     }
 
-                    // Other unexpected errors
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          "Failed to add component: ${e.toString()}",
-                        ),
-                      ),
-                    );
+                    ScaffoldMessenger.of(
+                      context,
+                    ).showSnackBar(SnackBar(content: Text(msg)));
                   }
                 },
-
-                child: const Text("Add to Build"),
+                child: const Text(
+                  "Add to Build",
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
 
             const SizedBox(width: 12),
 
-            // ---------------------------
             // ADD TO CART
-            // ---------------------------
             Expanded(
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  minimumSize: const Size(0, 50),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () async {
                   final api = ref.read(apiClientProvider);
@@ -295,27 +263,26 @@ class ComponentDetailScreen extends ConsumerWidget {
                       const SnackBar(content: Text("Added to Cart!")),
                     );
 
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    Navigator.of(context).popUntil((r) => r.isFirst);
                   } catch (e) {
-                    // nicer error messaging
-                    String message = "Failed to add to cart.";
+                    String msg = "Failed to add to cart";
+
                     if (e is DioException) {
                       final resp = e.response?.data;
                       if (resp is Map && resp["error"] != null) {
-                        message = resp["error"].toString();
-                      } else if (e.message != null) {
-                        message = e.message!;
+                        msg = resp["error"].toString();
                       }
-                    } else {
-                      message = e.toString();
                     }
 
                     ScaffoldMessenger.of(
                       context,
-                    ).showSnackBar(SnackBar(content: Text(message)));
+                    ).showSnackBar(SnackBar(content: Text(msg)));
                   }
                 },
-                child: const Text("Add to Cart"),
+                child: const Text(
+                  "Add to Cart",
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           ],

@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/core/services/api_client_provider.dart';
+import 'package:pc_component_picker/core/services/api_client_provider.dart';
 import '../services/home_service.dart';
 
 /// Provide HomeService once only (singleton)

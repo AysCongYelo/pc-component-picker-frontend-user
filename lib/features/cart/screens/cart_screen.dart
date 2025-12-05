@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/core/services/api_client.dart';
+import 'package:pc_component_picker/core/services/api_client.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -48,67 +48,66 @@ class _CartScreenState extends State<CartScreen> {
     return _formatCurrency(v);
   }
 
- Future<void> _loadCart() async {
-  setState(() {
-    _loading = true;
-    _error = null;
-  });
+  Future<void> _loadCart() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
-  try {
-    final res = await _api.get("/cart");
-    final rawItems = (res["items"] as List).cast<Map<String, dynamic>>();
+    try {
+      final res = await _api.get("/cart");
+      final rawItems = (res["items"] as List).cast<Map<String, dynamic>>();
 
-    // --- linisin yung cart: tanggalin yung items
-    //     na naka-link sa saved build na wala na ---
-    final List<Map<String, dynamic>> cleanedItems = [];
+      // --- linisin yung cart: tanggalin yung items
+      //     na naka-link sa saved build na wala na ---
+      final List<Map<String, dynamic>> cleanedItems = [];
 
-    for (final item in rawItems) {
-      final category = item["category"];
+      for (final item in rawItems) {
+        final category = item["category"];
 
-      // normal component item, diretso add
-      if (category != "build_bundle") {
-        cleanedItems.add(item);
-        continue;
+        // normal component item, diretso add
+        if (category != "build_bundle") {
+          cleanedItems.add(item);
+          continue;
+        }
+
+        // build_bundle → i-check kung buhay pa yung build
+        final buildId =
+            item["build_id"] ?? item["saved_build_id"] ?? item["builder_id"];
+
+        if (buildId == null) {
+          // wala nang reference, burahin na lang sa cart
+          await _api.delete("/cart/deleteRow/${item["id"]}");
+          continue;
+        }
+
+        try {
+          // kung ok pa ang request, ibig sabihin existing pa yung build
+          await _api.get("/builder/my/$buildId");
+          cleanedItems.add(item);
+        } catch (e) {
+          // 404 / error → wala na yung saved build, burahin na rin sa cart
+          await _api.delete("/cart/deleteRow/${item["id"]}");
+        }
       }
 
-      // build_bundle → i-check kung buhay pa yung build
-      final buildId =
-          item["build_id"] ?? item["saved_build_id"] ?? item["builder_id"];
+      setState(() {
+        _items = cleanedItems;
 
-      if (buildId == null) {
-        // wala nang reference, burahin na lang sa cart
-        await _api.delete("/cart/deleteRow/${item["id"]}");
-        continue;
-      }
+        // Keep only selections that still exist in cart
+        _selectedItems = _selectedItems.where((id) {
+          return _items.any((item) => item["id"].toString() == id);
+        }).toSet();
 
-      try {
-        // kung ok pa ang request, ibig sabihin existing pa yung build
-        await _api.get("/builder/my/$buildId");
-        cleanedItems.add(item);
-      } catch (e) {
-        // 404 / error → wala na yung saved build, burahin na rin sa cart
-        await _api.delete("/cart/deleteRow/${item["id"]}");
-      }
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
     }
-
-    setState(() {
-      _items = cleanedItems;
-
-      // Keep only selections that still exist in cart
-      _selectedItems = _selectedItems.where((id) {
-        return _items.any((item) => item["id"].toString() == id);
-      }).toSet();
-
-      _loading = false;
-    });
-  } catch (e) {
-    setState(() {
-      _error = e.toString();
-      _loading = false;
-    });
   }
-}
-
 
   Widget _summaryRow(
     String label,
@@ -179,7 +178,9 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // ---------------- HELPER: LOAD COMPONENTS FOR A BUILD ----------------
-  Future<List<Map<String, dynamic>>> _loadBuildComponents(dynamic buildId) async {
+  Future<List<Map<String, dynamic>>> _loadBuildComponents(
+    dynamic buildId,
+  ) async {
     final List<Map<String, dynamic>> comps = [];
     if (buildId == null) return comps;
 
@@ -290,8 +291,9 @@ class _CartScreenState extends State<CartScreen> {
                         final item = selected[i];
                         final idString = item["id"].toString();
                         final name = _itemDisplayName(item);
-                        final priceText =
-                            _formatCurrencyFromRaw(_itemDisplayPrice(item));
+                        final priceText = _formatCurrencyFromRaw(
+                          _itemDisplayPrice(item),
+                        );
                         final isBundle = item["category"] == "build_bundle";
                         final comps =
                             bundleComponentsByCartId[idString] ?? const [];
@@ -384,23 +386,22 @@ class _CartScreenState extends State<CartScreen> {
                                     final compName =
                                         (comp["name"] ?? "Unknown component")
                                             .toString();
-                                    final compCat =
-                                        (comp["category"] ?? "")
-                                            .toString()
-                                            .toUpperCase();
+                                    final compCat = (comp["category"] ?? "")
+                                        .toString()
+                                        .toUpperCase();
                                     final rawPrice = comp["price"] ?? 0;
                                     final priceNum = (rawPrice is num)
                                         ? rawPrice
-                                        : num.tryParse(
-                                              rawPrice.toString(),
-                                            ) ??
-                                            0;
-                                    final compPriceText =
-                                        _formatCurrency(priceNum);
+                                        : num.tryParse(rawPrice.toString()) ??
+                                              0;
+                                    final compPriceText = _formatCurrency(
+                                      priceNum,
+                                    );
 
                                     return Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 4.0),
+                                      padding: const EdgeInsets.only(
+                                        bottom: 4.0,
+                                      ),
                                       child: Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.spaceBetween,
@@ -451,18 +452,9 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                     child: Column(
                       children: [
-                        _summaryRow(
-                          "Subtotal",
-                          _formatCurrency(selectedTotal),
-                        ),
-                        _summaryRow(
-                          "Shipping Fee",
-                          _formatCurrency(150),
-                        ),
-                        _summaryRow(
-                          "Tax",
-                          _formatCurrency(0),
-                        ),
+                        _summaryRow("Subtotal", _formatCurrency(selectedTotal)),
+                        _summaryRow("Shipping Fee", _formatCurrency(150)),
+                        _summaryRow("Tax", _formatCurrency(0)),
                         const Divider(height: 20),
                         _summaryRow(
                           "Total",
@@ -578,22 +570,23 @@ class _CartScreenState extends State<CartScreen> {
     return _items
         .where((item) => _selectedItems.contains(item["id"].toString()))
         .fold(0, (sum, item) {
-      final qty = item["quantity"] ?? 1;
+          final qty = item["quantity"] ?? 1;
 
-      if (item["component_price"] != null) {
-        final price = double.tryParse(item["component_price"].toString()) ?? 0;
-        return sum + (price * qty);
-      }
+          if (item["component_price"] != null) {
+            final price =
+                double.tryParse(item["component_price"].toString()) ?? 0;
+            return sum + (price * qty);
+          }
 
-      if (item["build_total_price"] != null) {
-        final price =
-            double.tryParse(item["build_total_price"].toString()) ?? 0;
-        return sum + (price * qty);
-      }
+          if (item["build_total_price"] != null) {
+            final price =
+                double.tryParse(item["build_total_price"].toString()) ?? 0;
+            return sum + (price * qty);
+          }
 
-      final price = double.tryParse(item["price"].toString()) ?? 0;
-      return sum + (price * qty);
-    });
+          final price = double.tryParse(item["price"].toString()) ?? 0;
+          return sum + (price * qty);
+        });
   }
 
   // ---------------- CATEGORY ICON ----------------
@@ -634,171 +627,169 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       backgroundColor: _softGreyBg,
       appBar: AppBar(
-        backgroundColor: Colors.blue,
         elevation: 0,
         centerTitle: true,
-        iconTheme: const IconThemeData(
-          color: Colors.white,
-        ),
-        title: Text(
+        automaticallyImplyLeading: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
           "My Cart",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF2563EB), // primary blue
+                Color(0xFF3B82F6), // lighter blue
+              ],
+            ),
           ),
         ),
       ),
+
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Text(
-                    "Error: $_error",
-                    style: TextStyle(color: Colors.red[700]),
-                  ),
-                )
-              : _items.isEmpty
-                  ? _buildEmptyState()
-                  : Stack(
-                      children: [
-                        // Scrollable cart + pull-to-refresh
-                        RefreshIndicator(
-                          onRefresh: _loadCart,
-                          child: ListView(
-                            padding: const EdgeInsets.fromLTRB(
-                              16,
-                              16,
-                              16,
-                              160, // extra bottom padding para di matakpan
-                            ),
-                            children: [
-                              // SELECT ALL
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "Select All",
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: _textDark,
-                                    ),
-                                  ),
-                                  Checkbox(
-                                    value: _selectedItems.length ==
-                                            _items.length &&
-                                        _items.isNotEmpty,
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        if (checked == true) {
-                                          _selectedItems = _items
-                                              .map(
-                                                  (e) => e["id"].toString())
-                                              .toSet();
-                                        } else {
-                                          _selectedItems.clear();
-                                        }
-                                      });
-                                    },
-                                    activeColor: _primaryBlue,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ..._items.map(_cartItemTile).toList(),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
-                        ),
-
-                        // Fixed total card + checkout + remove sa baba (only if may selected)
-                        if (_selectedItems.isNotEmpty)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: SafeArea(
-                              top: false,
-                              child: Container(
-                                color: Colors.white,
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  16,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildTotalCard(selectedTotal),
-                                    const SizedBox(height: 10),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        icon: const Icon(Icons.payment),
-                                        label: Text(
-                                          "Checkout (${_selectedItems.length})",
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: _softGreen,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 12,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        onPressed: _showCheckoutDialog,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    // REMOVE SELECTED BUTTON
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton.icon(
-                                        icon: const Icon(
-                                          Icons.delete_outline,
-                                          size: 18,
-                                        ),
-                                        label: const Text(
-                                          "Remove Selected",
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.redAccent,
-                                          side: const BorderSide(
-                                            color: Colors.redAccent,
-                                          ),
-                                          padding:
-                                              const EdgeInsets.symmetric(
-                                            vertical: 10,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        onPressed: _removeSelectedItems,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
+          ? Center(
+              child: Text(
+                "Error: $_error",
+                style: TextStyle(color: Colors.red[700]),
+              ),
+            )
+          : _items.isEmpty
+          ? _buildEmptyState()
+          : Stack(
+              children: [
+                // Scrollable cart + pull-to-refresh
+                RefreshIndicator(
+                  onRefresh: _loadCart,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      160, // extra bottom padding para di matakpan
                     ),
+                    children: [
+                      // SELECT ALL
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Select All",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _textDark,
+                            ),
+                          ),
+                          Checkbox(
+                            value:
+                                _selectedItems.length == _items.length &&
+                                _items.isNotEmpty,
+                            onChanged: (checked) {
+                              setState(() {
+                                if (checked == true) {
+                                  _selectedItems = _items
+                                      .map((e) => e["id"].toString())
+                                      .toSet();
+                                } else {
+                                  _selectedItems.clear();
+                                }
+                              });
+                            },
+                            activeColor: _primaryBlue,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ..._items.map(_cartItemTile).toList(),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+
+                // Fixed total card + checkout + remove sa baba (only if may selected)
+                if (_selectedItems.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: SafeArea(
+                      top: false,
+                      child: Container(
+                        color: Colors.white,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildTotalCard(selectedTotal),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.payment),
+                                label: Text(
+                                  "Checkout (${_selectedItems.length})",
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _softGreen,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: _showCheckoutDialog,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // REMOVE SELECTED BUTTON
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
+                                label: const Text(
+                                  "Remove Selected",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  side: const BorderSide(
+                                    color: Colors.redAccent,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                onPressed: _removeSelectedItems,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 
@@ -959,10 +950,7 @@ class _CartScreenState extends State<CartScreen> {
               if (category != "build_bundle" && category != "temp_build") ...[
                 Text(
                   "Qty",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                 ),
                 const SizedBox(width: 8),
 
@@ -990,10 +978,7 @@ class _CartScreenState extends State<CartScreen> {
                       shape: BoxShape.circle,
                       color: Colors.grey[200],
                     ),
-                    child: const Icon(
-                      Icons.remove,
-                      size: 16,
-                    ),
+                    child: const Icon(Icons.remove, size: 16),
                   ),
                 ),
 
@@ -1024,19 +1009,13 @@ class _CartScreenState extends State<CartScreen> {
                       shape: BoxShape.circle,
                       color: Colors.grey[200],
                     ),
-                    child: const Icon(
-                      Icons.add,
-                      size: 16,
-                    ),
+                    child: const Icon(Icons.add, size: 16),
                   ),
                 ),
               ] else ...[
                 Text(
                   "Bundle / Build item",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
 
@@ -1075,10 +1054,7 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 label: const Text(
                   "Remove",
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.redAccent,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.redAccent),
                 ),
                 style: TextButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1186,10 +1162,7 @@ class _CartScreenState extends State<CartScreen> {
             Text(
               "Add items to your cart to proceed with checkout.",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 13,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 13),
             ),
           ],
         ),

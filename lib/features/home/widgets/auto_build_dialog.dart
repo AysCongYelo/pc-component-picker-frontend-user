@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/core/services/api_client_provider.dart';
+import 'package:pc_component_picker/core/services/api_client_provider.dart';
 
-import 'package:frontend/features/build/services/build_service.dart';
-import 'package:frontend/features/build/providers/build_provider.dart';
-import 'package:frontend/features/navigation/providers/nav_provider.dart';
-import 'package:frontend/features/auth/providers/auth_provider.dart';
-import 'package:frontend/core/services/api_client.dart';
+import 'package:pc_component_picker/features/build/services/build_service.dart';
+import 'package:pc_component_picker/features/build/providers/build_provider.dart';
+import 'package:pc_component_picker/features/navigation/providers/nav_provider.dart';
+import 'package:pc_component_picker/features/auth/providers/auth_provider.dart';
+import 'package:pc_component_picker/core/services/api_client.dart';
 
 class AutoBuildDialog {
   static void show(BuildContext context, WidgetRef ref) {

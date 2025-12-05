@@ -91,16 +91,23 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Edit Profile",
-          style: TextStyle(
-            color: Color(0xFF1E293B),
-            fontWeight: FontWeight.w600,
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
         ),
       ),
+
       body: user == null
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
@@ -164,10 +171,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 backgroundColor: Colors.white,
                 backgroundImage: _newAvatar != null
                     ? FileImage(_newAvatar!)
-                    : (user?['avatar_url'] != null
-                              ? NetworkImage(user!['avatar_url'])
-                              : const AssetImage('assets/user.png'))
-                          as ImageProvider,
+                    : (user?['avatar_url'] != null &&
+                          user!['avatar_url'].toString().trim().isNotEmpty)
+                    ? NetworkImage(user['avatar_url'])
+                    : const AssetImage('assets/user.png') as ImageProvider,
               ),
               Positioned(
                 bottom: 4,
@@ -178,12 +185,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 10,
+                        offset: Offset(0, 4),
                       ),
                     ],
                   ),
+
                   child: IconButton(
                     icon: Icon(Icons.camera_alt, color: mainBlue, size: 22),
                     onPressed: _chooseSource,
@@ -241,8 +249,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),

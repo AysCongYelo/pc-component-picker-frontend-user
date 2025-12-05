@@ -1,5 +1,5 @@
-name: frontend
-description: "A new Flutter project."
+name: pc_component_picker
+description: " PC Component Picker App."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
@@ -82,6 +82,7 @@ flutter:
     - assets/banners/featured.jpg
     - assets/banners/tips.jpg
     - assets/build_bundle.png
+    - assets/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

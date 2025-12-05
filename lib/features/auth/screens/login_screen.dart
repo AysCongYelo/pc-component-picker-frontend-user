@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:frontend/features/auth/providers/auth_provider.dart';
+import 'package:pc_component_picker/features/auth/providers/auth_provider.dart';
 import '../../../features/navigation/main_navigation.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -157,7 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ],
                         ),
                         child: Image.asset(
-                          'assets/aespa_logo.jpg',
+                          'assets/logo.png',
                           fit: BoxFit.contain,
                         ),
                       ),
@@ -166,7 +166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     const SizedBox(height: 20),
 
                     const Text(
-                      'PC',
+                      'PC Component Picker',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,

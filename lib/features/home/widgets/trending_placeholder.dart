@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/features/home/screens/component_detail_screen.dart';
+import 'package:pc_component_picker/features/home/screens/component_detail_screen.dart';
 
 class TrendingPlaceholder extends StatelessWidget {
   final List<Map<String, dynamic>> items;

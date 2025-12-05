@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/core/services/api_client_provider.dart';
-import 'package:frontend/features/build/providers/build_provider.dart';
-import 'package:frontend/features/build/providers/build_state.dart';
-import 'package:frontend/features/save/screens/saved_builds_screen.dart';
+import 'package:pc_component_picker/core/services/api_client_provider.dart';
+import 'package:pc_component_picker/features/build/providers/build_provider.dart';
+import 'package:pc_component_picker/features/build/providers/build_state.dart';
+import 'package:pc_component_picker/features/save/screens/saved_builds_screen.dart';
 import 'build_category_screen.dart';
-import 'package:frontend/features/build/screens/build_components_screen.dart';
+
+import 'package:pc_component_picker/features/build/screens/build_components_screen.dart';
 
 class BuildTab extends ConsumerStatefulWidget {
   const BuildTab({super.key});
@@ -68,10 +69,7 @@ class _BuildTabState extends ConsumerState<BuildTab> {
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Build Workspace",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
         // Sa error state, pinabayaan ko pa ring may RESET
         actions: [
@@ -143,19 +141,23 @@ class _BuildTabState extends ConsumerState<BuildTab> {
     return Scaffold(
       backgroundColor: _softGreyBg,
       appBar: AppBar(
-        backgroundColor: _primaryBlue,
-        elevation: 2,
+        elevation: 0,
         centerTitle: true,
-        automaticallyImplyLeading: true, // back arrow
+        automaticallyImplyLeading: true,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text(
           "Build Workspace",
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+            ),
           ),
         ),
-        // ✅ RESET lalabas lang kapag may components
         actions: hasComponents
             ? [
                 TextButton(
@@ -180,6 +182,7 @@ class _BuildTabState extends ConsumerState<BuildTab> {
               ]
             : [],
       ),
+
       body: Stack(
         children: [
           RefreshIndicator(
@@ -226,8 +229,10 @@ class _BuildTabState extends ConsumerState<BuildTab> {
               child: SafeArea(
                 top: false,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     boxShadow: [
@@ -301,16 +306,10 @@ class _BuildTabState extends ConsumerState<BuildTab> {
                   ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                      ),
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.broken_image, color: Colors.grey),
                     )
-                  : const Icon(
-                      Icons.memory,
-                      size: 28,
-                      color: Colors.grey,
-                    ),
+                  : const Icon(Icons.memory, size: 28, color: Colors.grey),
             ),
           ),
 
@@ -323,8 +322,10 @@ class _BuildTabState extends ConsumerState<BuildTab> {
               children: [
                 // CATEGORY CHIP
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey[100],
                     borderRadius: BorderRadius.circular(999),
@@ -456,17 +457,15 @@ class _BuildTabState extends ConsumerState<BuildTab> {
               try {
                 await ref.read(buildProvider.notifier).autoComplete();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Auto-complete successful!"),
-                  ),
+                  const SnackBar(content: Text("Auto-complete successful!")),
                 );
 
                 // pag nag-Auto Build, itago yung Add + Auto row
                 setState(() => _showAddAutoButtons = false);
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Error: $e")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Error: $e")));
               }
             },
           ),
@@ -573,8 +572,11 @@ class _BuildTabState extends ConsumerState<BuildTab> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            icon:
-                const Icon(Icons.shopping_cart, color: Colors.white, size: 18),
+            icon: const Icon(
+              Icons.shopping_cart,
+              color: Colors.white,
+              size: 18,
+            ),
             label: const Text(
               "Cart",
               style: TextStyle(color: Colors.white, fontSize: 14),
@@ -595,9 +597,9 @@ class _BuildTabState extends ConsumerState<BuildTab> {
                 setState(() => _showAddAutoButtons = true);
                 await ref.read(buildProvider.notifier).loadTempBuild();
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Error: $e")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Error: $e")));
               }
             },
           ),
@@ -667,7 +669,7 @@ class _BuildTabState extends ConsumerState<BuildTab> {
 
               try {
                 await ref.read(buildProvider.notifier).save(name);
-                SavedBuildsPage.shouldRefresh = true;
+                SavedBuildsPage.refreshTrigger.value = true;
 
                 if (!mounted) return;
 
@@ -675,15 +677,13 @@ class _BuildTabState extends ConsumerState<BuildTab> {
                 setState(() => _showAddAutoButtons = true);
 
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Build saved successfully!"),
-                  ),
+                  const SnackBar(content: Text("Build saved successfully!")),
                 );
               } catch (e) {
                 if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Error: $e")),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Error: $e")));
               }
             },
             child: const Text("Save"),

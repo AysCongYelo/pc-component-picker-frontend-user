@@ -3,7 +3,7 @@ import 'build_components_screen.dart';
 
 class BuildCategoryScreen extends StatelessWidget {
   final String? preselectedCategory;
-  final Set<String> selectedCategories; // ⭐ NEW
+  final Set<String> selectedCategories;
 
   const BuildCategoryScreen({
     super.key,
@@ -30,73 +30,103 @@ class BuildCategoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const mainBlue = Color(0xFF2563EB);
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+
       appBar: AppBar(
-        title: const Text("Select Category"),
-        backgroundColor: Colors.blueAccent,
+        elevation: 0,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text(
+          "Select Category",
+          style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white),
+        ),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF2563EB), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
       ),
 
       body: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (context, i) {
           final cat = categories[i];
-
-          final bool isHighlighted =
-              preselectedCategory != null &&
-              preselectedCategory == cat["value"];
-
+          final bool isHighlighted = preselectedCategory == cat["value"];
           final bool isSelectedAlready = selectedCategories.contains(
             cat["value"],
-          ); // ⭐ NEW
+          );
 
           return Opacity(
-            opacity: isSelectedAlready ? 0.4 : 1.0, // ⭐ gray out selected
+            opacity: isSelectedAlready ? 0.45 : 1.0,
             child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: isHighlighted
-                    ? Colors.blue.withOpacity(0.12)
-                    : Colors.white,
-                border: isHighlighted
-                    ? Border.all(color: Colors.blueAccent, width: 2)
-                    : null,
-              ),
-              child: ListTile(
-                enabled: !isSelectedAlready, // ⭐ cannot tap
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isHighlighted ? mainBlue : Colors.grey.shade200,
+                  width: isHighlighted ? 2 : 1,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+
+              child: ListTile(
+                enabled: !isSelectedAlready,
+                contentPadding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+
                 leading: Icon(
                   cat["icon"],
+                  size: 28,
                   color: isSelectedAlready
                       ? Colors.grey
                       : isHighlighted
-                      ? Colors.blueAccent
+                      ? mainBlue
                       : Colors.grey[700],
                 ),
+
                 title: Text(
                   cat["label"],
                   style: TextStyle(
+                    fontSize: 16,
                     fontWeight: isHighlighted
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                     color: isSelectedAlready
                         ? Colors.grey
                         : isHighlighted
-                        ? Colors.blueAccent
-                        : Colors.black87,
+                        ? mainBlue
+                        : const Color(0xFF1E293B),
                   ),
                 ),
 
-                // ⭐ checkmark or arrow
                 trailing: isSelectedAlready
                     ? const Icon(Icons.check_circle, color: Colors.green)
-                    : const Icon(Icons.arrow_forward_ios, size: 16),
+                    : const Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
 
                 onTap: isSelectedAlready
-                    ? null // disabled
+                    ? null
                     : () {
                         Navigator.push(
                           context,

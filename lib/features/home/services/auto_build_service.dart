@@ -1,4 +1,4 @@
-import 'package:frontend/core/services/api_client.dart';
+import 'package:pc_component_picker/core/services/api_client.dart';
 
 class AutoBuildService {
   final ApiClient api;

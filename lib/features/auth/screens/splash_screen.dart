@@ -70,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen>
                     ],
                   ),
                   child: Image.asset(
-                    'assets/aespa_logo.jpg', // keep same as login
+                    'assets/logo.png', // keep same as login
                     fit: BoxFit.contain,
                   ),
                 ),

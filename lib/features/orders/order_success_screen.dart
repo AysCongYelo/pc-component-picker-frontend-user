@@ -1,8 +1,8 @@
 // lib/features/orders/screens/order_success_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/features/navigation/main_navigation.dart';
-import 'package:frontend/features/navigation/providers/nav_provider.dart';
+import 'package:pc_component_picker/features/navigation/main_navigation.dart';
+import 'package:pc_component_picker/features/navigation/providers/nav_provider.dart';
 import 'orders_list_screen.dart';
 
 class OrderSuccessScreen extends ConsumerWidget {

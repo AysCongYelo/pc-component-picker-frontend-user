@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:frontend/features/auth/providers/intro_provider.dart';
+import 'package:pc_component_picker/features/auth/providers/intro_provider.dart';
 import 'login_screen.dart';
 
 class IntroScreen extends ConsumerStatefulWidget {
